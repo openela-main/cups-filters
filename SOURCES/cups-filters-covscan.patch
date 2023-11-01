@@ -1,0 +1,678 @@
+diff --git a/backend/beh.c b/backend/beh.c
+index 9ba6613..7514e33 100644
+--- a/backend/beh.c
++++ b/backend/beh.c
+@@ -223,6 +223,8 @@ call_backend(char *uri,                 /* I - URI of final destination */
+   */
+ 
+   strncpy(scheme, uri, sizeof(scheme));
++  if (strlen(uri) > 1023)
++    scheme[1023] = '\0';
+   if ((ptr = strchr(scheme, ':')) != NULL)
+     *ptr = '\0';
+ 
+diff --git a/backend/implicitclass.c b/backend/implicitclass.c
+index 3ce4d10..1593191 100644
+--- a/backend/implicitclass.c
++++ b/backend/implicitclass.c
+@@ -104,6 +104,8 @@ main(int  argc,				/* I - Number of command-line args */
+     }
+     ptr1 ++;
+     strncpy(queue_name, ptr1, sizeof(queue_name));
++    if (strlen(ptr1) > 1023)
++      queue_name[1023] = '\0';
+     httpAssembleURIf(HTTP_URI_CODING_ALL, uri, sizeof(uri), "ipp", NULL,
+ 		     "localhost", ippPort(), "/printers/%s", queue_name);
+     job_id = argv[1];
+@@ -162,6 +164,8 @@ main(int  argc,				/* I - Number of command-line args */
+       /* Read destination host name (or message) and check whether it is
+ 	 complete (second double quote) */
+       strncpy(dest_host, ptr1, sizeof(dest_host));
++      if (strlen(ptr1) > 1023)
++        dest_host[1023] = '\0';
+       ptr1 = dest_host;
+       if ((ptr2 = strchr(ptr1, '"')) != NULL) {
+ 	*ptr2 = '\0';
+diff --git a/cupsfilters/colormanager.c b/cupsfilters/colormanager.c
+index 70074a3..a4a929d 100644
+--- a/cupsfilters/colormanager.c
++++ b/cupsfilters/colormanager.c
+@@ -272,6 +272,9 @@ _get_colord_profile(const char   *printer_name,     /* Dest name */
+       free(qualifier);
+     }
+ 
++    if (icc_profile != NULL)
++      free(icc_profile);
++
+     return is_profile_set;
+ 
+ }
+@@ -325,8 +328,11 @@ _get_ppd_icc_fallback (ppd_file_t *ppd, char **qualifier)
+     if (attr->value[0] != '/')
+       snprintf(full_path, sizeof(full_path),
+                "%s/profiles/%s", CUPSDATA, attr->value);
+-    else
++    else {
+       strncpy(full_path, attr->value, sizeof(full_path));
++      if (strlen(attr->value) > 1023)
++        full_path[1023] = '\0';
++    }
+ 
+     /* check the file exists */
+     if (access(full_path, 0)) {
+diff --git a/cupsfilters/image-sgilib.c b/cupsfilters/image-sgilib.c
+index 0b70c13..bf2dd80 100644
+--- a/cupsfilters/image-sgilib.c
++++ b/cupsfilters/image-sgilib.c
+@@ -282,7 +282,7 @@ sgiOpenFile(FILE *file,			/* I - File to open */
+         sgip->mode = SGI_WRITE;
+ 
+         putshort(SGI_MAGIC, sgip->file);
+-        putc((sgip->comp = comp) != 0, sgip->file);
++        putc(((sgip->comp = comp) != 0) ? '1': '0', sgip->file);
+         putc(sgip->bpp = bpp, sgip->file);
+         putshort(3, sgip->file);		/* Dimensions */
+         putshort(sgip->xsize = xsize, sgip->file);
+diff --git a/cupsfilters/image-sun.c b/cupsfilters/image-sun.c
+index 609b194..989d039 100644
+--- a/cupsfilters/image-sun.c
++++ b/cupsfilters/image-sun.c
+@@ -114,6 +114,7 @@ _cupsImageReadSunRaster(
+       ras_depth == 0 || ras_depth > 32)
+   {
+     fputs("DEBUG: Raster image cannot be loaded!\n", stderr);
++    fclose(fp);
+     return (1);
+   }
+ 
+diff --git a/cupsfilters/ppdgenerator.c b/cupsfilters/ppdgenerator.c
+index 052e3c5..3bc4d8a 100644
+--- a/cupsfilters/ppdgenerator.c
++++ b/cupsfilters/ppdgenerator.c
+@@ -937,6 +937,10 @@ load_opt_strings_catalog(const char *location, cups_array_t *options)
+     }
+   }
+   cupsFileClose(fp);
++  if (choice_name != NULL)
++    free(choice_name);
++  if (opt_name != NULL)
++    free(opt_name);
+   if (filename == tmpfile)
+     unlink(filename);
+ }
+diff --git a/cupsfilters/raster.c b/cupsfilters/raster.c
+index 8203690..67d6b9b 100644
+--- a/cupsfilters/raster.c
++++ b/cupsfilters/raster.c
+@@ -151,11 +151,14 @@ cupsRasterParseIPPOptions(cups_page_header2_t *h, /* I - Raster header */
+ 		strcasestr(s, "right") ||
+ 		strcasestr(s, "side") ||
+ 		strcasestr(s, "main"))
+-	      media_source = strdup(s);
++            {
++              if (media_source == NULL)
++	        media_source = strdup(s);
++            }
+ 	    else
+ 	      media_type = strdup(s);
+ 	  }
+-      if (size_found)
++      if (page_size == NULL && size_found)
+ 	page_size = strdup(size_found->pwg);
+     }
+   }
+@@ -1079,6 +1082,13 @@ cupsRasterParseIPPOptions(cups_page_header2_t *h, /* I - Raster header */
+     h->cupsRenderingIntent[0] = '\0';
+ #endif /* HAVE_CUPS_1_7 */
+ 
++  if (media_source != NULL)
++    free(media_source);
++  if (media_type != NULL)
++    free(media_type);
++  if (page_size != NULL)
++    free(page_size);
++
+   return (0);
+ }
+ 
+diff --git a/filter/bannertopdf.c b/filter/bannertopdf.c
+index b78ea37..2b9bd76 100644
+--- a/filter/bannertopdf.c
++++ b/filter/bannertopdf.c
+@@ -513,6 +513,15 @@ static int generate_banner_pdf(banner_t *banner,
+         pdf_duplicate_page(doc, 1, copies);
+ 
+     pdf_write(doc, stdout);
++
++    opt_t * opt_current = known_opts;
++    opt_t * opt_next = NULL;
++    while (opt_current != NULL)
++    {
++      opt_next = opt_current->next;
++      free(opt_current);
++      opt_current = opt_next;
++    }
+     free(buf);
+     pdf_free(doc);
+     return 0;
+diff --git a/filter/foomatic-rip/foomaticrip.c b/filter/foomatic-rip/foomaticrip.c
+index 2a642ed..13d2035 100644
+--- a/filter/foomatic-rip/foomaticrip.c
++++ b/filter/foomatic-rip/foomaticrip.c
+@@ -666,6 +666,11 @@ int print_file(const char *filename, int convert)
+                 ret = print_file("<STDIN>", 0);
+ 
+                 wait_for_process(renderer_pid);
++                if (in != NULL)
++                  fclose(in);
++                if (out != NULL)
++                  fclose(out);
++
+                 return ret;
+             }
+ 
+@@ -683,6 +688,8 @@ int print_file(const char *filename, int convert)
+ 
+         case UNKNOWN_FILE:
+ 	    _log("Cannot process \"%s\": Unknown filetype.\n", filename);
++	    if (file != NULL)
++	      fclose(file);
+ 	    return 0;
+     }
+ 
+@@ -811,10 +818,14 @@ int main(int argc, char** argv)
+ 
+     if (getenv("PPD")) {
+         strncpy(job->ppdfile, getenv("PPD"), 2048);
++        if (strlen(getenv("PPD")) > 2047)
++          job->ppdfile[2047] = '\0';
+         spooler = SPOOLER_CUPS;
+-	if (getenv("CUPS_SERVERBIN"))
+-	    strncpy(cupsfilterpath, getenv("CUPS_SERVERBIN"),
+-		    sizeof(cupsfilterpath));
++    if (getenv("CUPS_SERVERBIN")) {
++        strncpy(cupsfilterpath, getenv("CUPS_SERVERBIN"), sizeof(cupsfilterpath));
++        if (strlen(getenv("CUPS_SERVERBIN")) > PATH_MAX-1)
++          cupsfilterpath[PATH_MAX-1] = '\0';
++        }
+     }
+ 
+     /* Check status of printer color management from the color manager */
+@@ -834,10 +845,14 @@ int main(int argc, char** argv)
+            allow duplicates, and use the last specified one */
+             while ((str = arglist_get_value(arglist, "-p"))) {
+                 strncpy(job->ppdfile, str, 2048);
++                if (strlen(str) > 2047)
++                  job->ppdfile[2047] = '\0';
+                 arglist_remove(arglist, "-p");
+             }
+ 	    while ((str = arglist_get_value(arglist, "--ppd"))) {
+ 	        strncpy(job->ppdfile, str, 2048);
++	        if (strlen(str) > 2047)
++	          job->ppdfile[2047] = '\0';
+ 	        arglist_remove(arglist, "--ppd");
+ 	    }
+ 
+@@ -1020,6 +1035,7 @@ int main(int argc, char** argv)
+                   cmd[0] = '\0';
+ 
+                 snprintf(gstoraster, sizeof(gstoraster), "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOINTERPOLATE -dNOMEDIAATTRS -sDEVICE=cups -dShowAcroForm %s -sOutputFile=- -", cmd);
++                free(icc_profile);
+             }
+ 
+             /* build Ghostscript/CUPS driver command line */
+diff --git a/filter/foomatic-rip/options.c b/filter/foomatic-rip/options.c
+index 325a0a6..798ddf9 100644
+--- a/filter/foomatic-rip/options.c
++++ b/filter/foomatic-rip/options.c
+@@ -1031,12 +1031,10 @@ int option_set_value(option_t *opt, int optionset, const char *value)
+         /* TODO only set the changed option, not all of them */
+         choice = option_find_choice(fromopt, 
+                                     option_get_value(fromopt, optionset));
+-
+         composite_set_values(fromopt, optionset, choice->command);
+-    }
+-    else {
++	free(newvalue);
++    } else
+         val->value = newvalue;
+-    }
+ 
+     if (option_is_composite(opt)) {
+         /* set dependent values */
+@@ -1914,6 +1912,8 @@ int ppd_supports_pdf()
+     if (startswith(cmd, "gs"))
+     {
+         strncpy(cmd_pdf, cmd, 4096);
++        if (strlen(cmd) > 4095)
++          cmd_pdf[4095] = '\0';
+         return 1;
+     }
+ 
+diff --git a/filter/foomatic-rip/spooler.c b/filter/foomatic-rip/spooler.c
+index 236551f..4f27563 100644
+--- a/filter/foomatic-rip/spooler.c
++++ b/filter/foomatic-rip/spooler.c
+@@ -94,6 +94,8 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
+        CUPS puts the print queue name into the PRINTER environment variable
+        when calling filters. */
+     strncpy(job->printer, getenv("PRINTER"), 256);
++    if (strlen(getenv("PRINTER")) > 255)
++      job->printer[255] = '\0';
+ 
+     free(cups_options);
+ }
+diff --git a/filter/pdftops.c b/filter/pdftops.c
+index 55d2ec1..a648444 100644
+--- a/filter/pdftops.c
++++ b/filter/pdftops.c
+@@ -427,6 +427,8 @@ main(int  argc,				/* I - Number of command-line args */
+   if ((val = cupsGetOption("make-and-model", num_options, options)) != NULL)
+   {
+     strncpy(make_model, val, sizeof(make_model));
++    if (strlen(val) > 127)
++      make_model[127] = '\0';
+     for (ptr = make_model; *ptr; ptr ++)
+       if (*ptr == '-') *ptr = ' ';
+   }
+diff --git a/filter/pdftoraster.cxx b/filter/pdftoraster.cxx
+index 4cd656a..0c63ab8 100644
+--- a/filter/pdftoraster.cxx
++++ b/filter/pdftoraster.cxx
+@@ -558,8 +558,10 @@ static void parseOpts(int argc, char **argv)
+     if (!cm_disabled) 
+       cmGetPrinterIccProfile(getenv("PRINTER"), &profile, ppd);
+ 
+-    if (profile != NULL)
+-      colorProfile = cmsOpenProfileFromFile(profile,"r");    
++    if (profile != NULL) {
++      colorProfile = cmsOpenProfileFromFile(profile,"r");
++      free(profile);
++    }
+ 
+ #ifdef HAVE_CUPS_1_7
+     if ((attr = ppdFindAttr(ppd,"PWGRaster",0)) != 0 &&
+diff --git a/filter/rastertoescpx.c b/filter/rastertoescpx.c
+index 5a3e5df..a0ec416 100644
+--- a/filter/rastertoescpx.c
++++ b/filter/rastertoescpx.c
+@@ -1141,7 +1141,10 @@ EndPage(ppd_file_t         *ppd,	/* I - PPD file */
+     }
+   }
+   else
++  {
+     free(DotBuffers[0]);
++    DotBuffers[0] = NULL;
++  }
+ 
+  /*
+   * Output a page eject sequence...
+@@ -1440,7 +1443,7 @@ CompressData(ppd_file_t          *ppd,	/* I - PPD file information */
+ 
+     printf("\033i");
+     putchar(ctable[PrinterPlanes - 1][plane]);
+-    putchar(type != 0);
++    putchar((type != 0) ? '1': '0');
+     putchar(BitPlanes);
+     putchar(bytes & 255);
+     putchar(bytes >> 8);
+@@ -1470,7 +1473,7 @@ CompressData(ppd_file_t          *ppd,	/* I - PPD file information */
+     bytes *= 8;
+ 
+     printf("\033.");
+-    putchar(type != 0);
++    putchar((type != 0) ? '1': '0');
+     putchar(ystep);
+     putchar(xstep);
+     putchar(rows);
+@@ -1907,6 +1910,10 @@ main(int  argc,				/* I - Number of command-line arguments */
+   if (fd != 0)
+     close(fd);
+ 
++  for (int i = 0; i < 7; i++)
++    if (DotBuffers[i] != NULL)
++      free(DotBuffers[i]);
++
+   return (page == 0);
+ }
+ 
+diff --git a/filter/rastertops.c b/filter/rastertops.c
+index d5d955b..531eb70 100644
+--- a/filter/rastertops.c
++++ b/filter/rastertops.c
+@@ -282,6 +282,8 @@ write_flate(cups_raster_t *ras,	        /* I - Image data */
+       if (fwrite(out, 1, have, stdout) != have)
+       {
+ 	(void)deflateEnd(&strm);
++	if (convertedpix != NULL)
++	  free(convertedpix);
+ 	return Z_ERRNO;
+       }
+     } while (strm.avail_out == 0);
+diff --git a/filter/sys5ippprinter.c b/filter/sys5ippprinter.c
+index ad75551..9a92c8e 100644
+--- a/filter/sys5ippprinter.c
++++ b/filter/sys5ippprinter.c
+@@ -570,6 +570,8 @@ exec_filter(const char *filter,		/* I - Filter to execute */
+ 	dup2(fd, 2);
+ 	close(fd);
+       }
++      else
++        close(fd);
+       fcntl(2, F_SETFL, O_NDELAY);
+     }
+ 
+@@ -578,6 +580,8 @@ exec_filter(const char *filter,		/* I - Filter to execute */
+       dup2(fd, 3);
+       close(fd);
+     }
++    else
++      close(fd);
+     fcntl(3, F_SETFL, O_NDELAY);
+ 
+     if ((fd = open("/dev/null", O_RDWR)) > 4)
+@@ -585,6 +589,8 @@ exec_filter(const char *filter,		/* I - Filter to execute */
+       dup2(fd, 4);
+       close(fd);
+     }
++    else
++      close(fd);
+     fcntl(4, F_SETFL, O_NDELAY);
+ 
+    /*
+@@ -654,8 +660,11 @@ exec_filters(cups_array_t  *filters,	/* I - Array of filters to run */
+   {
+     next = (char *)cupsArrayNext(filters);
+ 
+-    if (filter[0] == '/')
++    if (filter[0] == '/') {
+       strncpy(program, filter, sizeof(program));
++      if (strlen(filter) > 1023)
++        program[1023] = '\0';
++    }
+     else
+     {
+       if ((cups_serverbin = getenv("CUPS_SERVERBIN")) == NULL)
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index a2a4a08..19a2ac8 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -2245,7 +2245,10 @@ is_disabled(const char *printer, const char *reason) {
+ 	  pstate = (ipp_pstate_t)ippGetInteger(attr, 0);
+ 	else if (!strcmp(ippGetName(attr), "printer-state-message") &&
+ 		 ippGetValueTag(attr) == IPP_TAG_TEXT) {
+-	  free(pstatemsg);
++	  if (pstatemsg != NULL) {
++	    free(pstatemsg);
++	    pstatemsg = NULL;
++	  }
+ 	  p = ippGetString(attr, 0, NULL);
+ 	  if (p != NULL) pstatemsg = strdup(p);
+ 	}
+@@ -2262,16 +2265,22 @@ is_disabled(const char *printer, const char *reason) {
+ 	case IPP_PRINTER_IDLE:
+ 	case IPP_PRINTER_PROCESSING:
+ 	  ippDelete(response);
+-	  free(pstatemsg);
++	  if (pstatemsg != NULL) {
++	    free(pstatemsg);
++	    pstatemsg = NULL;
++	  }
+ 	  return NULL;
+ 	case IPP_PRINTER_STOPPED:
+ 	  ippDelete(response);
+ 	  if (reason == NULL)
+ 	    return pstatemsg;
+-	  else if (strcasestr(pstatemsg, reason) != NULL)
++	  else if (pstatemsg != NULL && (strcasestr(pstatemsg, reason) != NULL))
+ 	    return pstatemsg;
+ 	  else {
+-	    free(pstatemsg);
++            if (pstatemsg != NULL) {
++                free(pstatemsg);
++                pstatemsg = NULL;
++            }
+ 	    return NULL;
+ 	  }
+ 	}
+@@ -2280,12 +2289,18 @@ is_disabled(const char *printer, const char *reason) {
+     debug_printf("No information regarding enabled/disabled found about the requested printer '%s'\n",
+ 		 printer);
+     ippDelete(response);
+-    free(pstatemsg);
++    if (pstatemsg != NULL) {
++      free(pstatemsg);
++      pstatemsg = NULL;
++    }
+     return NULL;
+   }
+   debug_printf("ERROR: Request for printer info failed: %s\n",
+ 	       cupsLastErrorString());
+-  free(pstatemsg);
++  if (pstatemsg != NULL) {
++    free(pstatemsg);
++    pstatemsg = NULL;
++  }
+   return NULL;
+ }
+ 
+@@ -3040,6 +3055,8 @@ on_printer_state_changed (CupsNotifier *object,
+ 		      dest_host = p->ip ? p->ip : p->host;
+ 		      dest_port = p->port;
+ 		      strncpy(dest_name, remote_cups_queue, sizeof(dest_name));
++		      if (strlen(remote_cups_queue) > 1023)
++		        dest_name[1023] = '\0';
+ 		      dest_index = i;
+ 		      debug_printf("Printer %s on host %s, port %d is idle, take this as destination and stop searching.\n",
+ 				   remote_cups_queue, p->host, p->port);
+@@ -3056,8 +3073,9 @@ on_printer_state_changed (CupsNotifier *object,
+ 			  min_jobs = num_jobs;
+ 			  dest_host = p->ip ? p->ip : p->host;
+ 			  dest_port = p->port;
+-			  strncpy(dest_name, remote_cups_queue,
+-				  sizeof(dest_name));
++			  strncpy(dest_name, remote_cups_queue, sizeof(dest_name));
++			  if (strlen(remote_cups_queue) > 1023)
++			    dest_name[1023] = '\0';
+ 			  dest_index = i;
+ 			}
+ 			debug_printf("Printer %s on host %s, port %d is printing and it has %d jobs.\n",
+@@ -3566,8 +3584,9 @@ create_remote_printer_entry (const char *queue_name,
+ 				   IPP_TAG_KEYWORD)) != NULL) {
+ 	debug_printf("  Attr: %s\n", ippGetName(attr));
+ 	for (i = 0; i < ippGetCount(attr); i ++) {
+-	  strncpy(valuebuffer, ippGetString(attr, i, NULL),
+-		  sizeof(valuebuffer));
++	  strncpy(valuebuffer, ippGetString(attr, i, NULL), sizeof(valuebuffer));
++	  if (strlen(ippGetString(attr, i, NULL)) > 65535)
++	    valuebuffer[65535] = '\0';
+ 	  debug_printf("  Keyword: %s\n", valuebuffer);
+ 	  if (valuebuffer[0] > '1')
+ 	    break;
+@@ -3598,8 +3617,9 @@ create_remote_printer_entry (const char *queue_name,
+ 	debug_printf("  Value: %s\n", valuebuffer);
+ 	if (valuebuffer[0] == '\0') {
+ 	  for (i = 0; i < ippGetCount(attr); i ++) {
+-	    strncpy(valuebuffer, ippGetString(attr, i, NULL),
+-		    sizeof(valuebuffer));
++	    strncpy(valuebuffer, ippGetString(attr, i, NULL), sizeof(valuebuffer));
++	    if (strlen(ippGetString(attr, i, NULL)) > 65535)
++	      valuebuffer[65535] = '\0';
+ 	    debug_printf("  Keyword: %s\n", valuebuffer);
+ 	    if (valuebuffer[0] != '\0')
+ 	      break;
+@@ -3629,8 +3649,9 @@ create_remote_printer_entry (const char *queue_name,
+ 	debug_printf("  Value: %s\n", valuebuffer);
+ 	if (valuebuffer[0] == '\0') {
+ 	  for (i = 0; i < ippGetCount(attr); i ++) {
+-	    strncpy(valuebuffer, ippGetString(attr, i, NULL),
+-		    sizeof(valuebuffer));
++	    strncpy(valuebuffer, ippGetString(attr, i, NULL), sizeof(valuebuffer));
++	    if (strlen(ippGetString(attr, i, NULL)) > 65535)
++	      valuebuffer[65535] = '\0';
+ 	    debug_printf("  Keyword: %s\n", valuebuffer);
+ 	    if (valuebuffer[0] != '\0')
+ 	      break;
+@@ -3663,8 +3684,9 @@ create_remote_printer_entry (const char *queue_name,
+ 	debug_printf("  Value: %s\n", p->queue_name, valuebuffer);
+ 	if (valuebuffer[0] == '\0') {
+ 	  for (i = 0; i < ippGetCount(attr); i ++) {
+-	    strncpy(valuebuffer, ippGetString(attr, i, NULL),
+-		    sizeof(valuebuffer));
++	    strncpy(valuebuffer, ippGetString(attr, i, NULL), sizeof(valuebuffer));
++	    if (strlen(ippGetString(attr, i, NULL)) > 65535)
++	      valuebuffer[65535] = '\0';
+ 	    debug_printf("  Keyword: %s\n", valuebuffer);
+ 	    if (valuebuffer[0] != '\0')
+ 	      break;
+@@ -4498,6 +4520,8 @@ gboolean update_cups_queues(gpointer unused) {
+       } else {
+ 	/* Device URI: ipp(s)://<remote host>:631/printers/<remote queue> */
+ 	strncpy(device_uri, p->uri, sizeof(device_uri));
++	if (strlen(p->uri) > HTTP_MAX_URI-1)
++	  device_uri[HTTP_MAX_URI-1] = '\0';
+ 	debug_printf("Print queue %s is for an IPP network printer, or we do not get notifications from CUPS, using direct device URI %s\n",
+ 		     p->queue_name, device_uri);
+       }
+@@ -4606,6 +4630,8 @@ gboolean update_cups_queues(gpointer unused) {
+ 	  } else if (!strncmp(line, "*Default", 8)) {
+ 	    cont_line_read = 0;
+ 	    strncpy(keyword, line + 8, sizeof(keyword));
++	    if ((strlen(line) + 8) > 1023)
++	      keyword[1023] = '\0';
+ 	    for (keyptr = keyword; *keyptr; keyptr ++)
+ 	      if (*keyptr == ':' || isspace(*keyptr & 255))
+ 		break;
+@@ -7144,7 +7170,7 @@ read_configuration (const char *filename)
+      in the configuration file is used. */
+   while ((i < cupsArrayCount(command_line_config) &&
+ 	  (value = cupsArrayIndex(command_line_config, i++)) &&
+-	  strncpy(line, value, sizeof(line))) ||
++	  strncpy(line, value, sizeof(line)) && ((strlen(value) > HTTP_MAX_BUFFER-1)? line[HTTP_MAX_BUFFER-1] = '\0':  1)) ||
+ 	 cupsFileGetConf(fp, line, sizeof(line), &value, &linenum)) {
+     if (linenum < 0) {
+       /* We are still reading options from the command line ("-o ..."),
+@@ -7371,6 +7397,7 @@ read_configuration (const char *filename)
+ 	if (filter->cregexp)
+ 	  regfree(filter->cregexp);
+ 	free(filter);
++	filter = NULL;
+       }
+     } else if ((!strcasecmp(line, "BrowseInterval") || !strcasecmp(line, "BrowseTimeout")) && value) {
+       int t = atoi(value);
+@@ -7386,8 +7413,11 @@ read_configuration (const char *filename)
+ 	debug_printf("Invalid %s value: %d\n",
+ 		     line, t);
+     } else if (!strcasecmp(line, "DomainSocket") && value) {
+-      if (value[0] != '\0')
++      if (value[0] != '\0') {
++	if (DomainSocket != NULL)
++	  free(DomainSocket);
+ 	DomainSocket = strdup(value);
++      }
+     } else if ((!strcasecmp(line, "HttpLocalTimeout") || !strcasecmp(line, "HttpRemoteTimeout")) && value) {
+       int t = atoi(value);
+       if (t >= 0) {
+@@ -7555,6 +7585,10 @@ read_configuration (const char *filename)
+ 	}
+       }
+       cupsArrayAdd (clusters, cluster);
++      if (start != NULL) {
++        free(start);
++        start = NULL;
++      }
+       continue;
+     cluster_fail:
+       if (cluster) {
+@@ -7568,6 +7602,11 @@ read_configuration (const char *filename)
+ 	  cupsArrayDelete (cluster->members);
+ 	}
+ 	free(cluster);
++        cluster = NULL;
++      }
++      if (start != NULL) {
++        free(start);
++        start = NULL;
+       }
+     } else if (!strcasecmp(line, "LoadBalancing") && value) {
+       if (!strncasecmp(value, "QueueOnClient", 13))
+@@ -7575,7 +7614,7 @@ read_configuration (const char *filename)
+       else if (!strncasecmp(value, "QueueOnServers", 14))
+ 	LoadBalancingType = QUEUE_ON_SERVERS;
+     } else if (!strcasecmp(line, "DefaultOptions") && value) {
+-      if (strlen(value) > 0)
++      if (DefaultOptions == NULL && strlen(value) > 0)
+ 	DefaultOptions = strdup(value);
+     } else if (!strcasecmp(line, "AutoShutdown") && value) {
+       char *p, *saveptr;
+@@ -7949,10 +7988,12 @@ int main(int argc, char*argv[]) {
+      daemon, not with remote ones. */
+   if (getenv("CUPS_SERVER") != NULL) {
+     strncpy(local_server_str, getenv("CUPS_SERVER"), sizeof(local_server_str));
++    if (strlen(getenv("CUPS_SERVER")) > 1023)
++      local_server_str[1023] = '\0';
+   } else {
+ #ifdef CUPS_DEFAULT_DOMAINSOCKET
+     if (DomainSocket == NULL)
+-      DomainSocket = CUPS_DEFAULT_DOMAINSOCKET;
++      DomainSocket = strdup(CUPS_DEFAULT_DOMAINSOCKET);
+ #endif
+     if (DomainSocket != NULL) {
+       struct stat sockinfo;               /* Domain socket information */
+@@ -8293,6 +8334,11 @@ fail:
+   if (debug_logfile == 1)
+     stop_debug_logging();
+ 
++  if (DefaultOptions != NULL)
++    free(DefaultOptions);
++  if (DomainSocket != NULL)
++    free(DomainSocket);
++
+   return ret;
+ 
+  help:
+diff --git a/utils/driverless.c b/utils/driverless.c
+index 7fc6dae..fe61e58 100644
+--- a/utils/driverless.c
++++ b/utils/driverless.c
+@@ -227,12 +227,16 @@ list_printers (int mode)
+ 	
+ 	if (txt_usb_mfg[0] != '\0') {
+ 	  strncpy(make, txt_usb_mfg, sizeof(make));
++	  if (strlen(txt_usb_mfg) > 511)
++	    make[511] = '\0';
+ 	  ptr = device_id + strlen(device_id);
+ 	  snprintf(ptr, sizeof(device_id) - (size_t)(ptr - device_id),
+ 		   "MFG:%s;", txt_usb_mfg);
+ 	}
+ 	if (txt_usb_mdl[0] != '\0') {
+ 	  strncpy(model, txt_usb_mdl, sizeof(model));
++	  if (strlen(txt_usb_mdl) > 255)
++	    model[255] = '\0';
+ 	  ptr = device_id + strlen(device_id);
+ 	  snprintf(ptr, sizeof(device_id) - (size_t)(ptr - device_id),
+ 		   "MDL:%s;", txt_usb_mdl);
+@@ -243,15 +247,22 @@ list_printers (int mode)
+ 		*ptr == ')')
+ 	      *ptr = '\0';
+ 	    strncpy(model, txt_product + 1, sizeof(model));
++	    if ((strlen(txt_product) + 1) > 255)
++	      model[255] = '\0';
+ 	  } else
+ 	    strncpy(model, txt_product, sizeof(model));
+ 	} else if (txt_ty[0] != '\0') {
+ 	  strncpy(model, txt_ty, sizeof(model));
++	  if (strlen(txt_ty) > 255)
++	    model[255] = '\0';
+ 	  if ((ptr = strchr(model, ',')) != NULL)
+ 	    *ptr = '\0';
+ 	}
+-	if (txt_pdl[0] != '\0')
++	if (txt_pdl[0] != '\0') {
+ 	  strncpy(pdl, txt_pdl, sizeof(pdl));
++	  if (strlen(txt_pdl) > 255)
++	    pdl[255] = '\0';
++	}
+ 
+ 	if (!device_id[0] && strcasecmp(model, "Unknown")) {
+ 	  if (make[0])

@@ -1,0 +1,13 @@
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index 078348a..2b30c63 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -8268,7 +8268,7 @@ int main(int argc, char*argv[]) {
+   /* Subscribe to CUPS' D-Bus notifications and create a proxy to receive
+      the notifications */
+   subscription_id = create_subscription ();
+-  g_timeout_add_seconds (NOTIFY_LEASE_DURATION - 60,
++  g_timeout_add_seconds (NOTIFY_LEASE_DURATION / 2,
+ 			 renew_subscription_timeout,
+ 			 &subscription_id);
+   cups_notifier = cups_notifier_proxy_new_for_bus_sync (G_BUS_TYPE_SYSTEM,

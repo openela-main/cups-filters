@@ -1,0 +1,20 @@
+diff --git a/filter/pdftopdf/qpdf_pdftopdf_processor.cc b/filter/pdftopdf/qpdf_pdftopdf_processor.cc
+index 73e4f06..0752a99 100644
+--- a/filter/pdftopdf/qpdf_pdftopdf_processor.cc
++++ b/filter/pdftopdf/qpdf_pdftopdf_processor.cc
+@@ -623,6 +623,7 @@ void QPDF_PDFTOPDF_Processor::emitFile(FILE *f,ArgOwnership take) // {{{
+   if (!extraheader.empty()) {
+     out.setExtraHeaderText(extraheader);
+   }
++  out.setPreserveEncryption(false);
+   out.write();
+ }
+ // }}}
+@@ -642,6 +643,7 @@ void QPDF_PDFTOPDF_Processor::emitFilename(const char *name) // {{{
+   if (!extraheader.empty()) {
+     out.setExtraHeaderText(extraheader);
+   }
++  out.setPreserveEncryption(false);
+   out.write();
+ }
+ // }}}

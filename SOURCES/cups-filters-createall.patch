@@ -1,0 +1,21 @@
+diff -up cups-filters-1.16.1/utils/cups-browsed.conf.in.createall cups-filters-1.16.1/utils/cups-browsed.conf.in
+--- cups-filters-1.16.1/utils/cups-browsed.conf.in.createall	2018-01-02 17:17:51.555941155 +0100
++++ cups-filters-1.16.1/utils/cups-browsed.conf.in	2018-01-02 17:19:49.651048564 +0100
+@@ -359,7 +359,7 @@ BrowseRemoteProtocols @BROWSEREMOTEPROTO
+ 
+ # LocalQueueNamingRemoteCUPS DNS-SD
+ # LocalQueueNamingRemoteCUPS MakeModel
+-# LocalQueueNamingRemoteCUPS RemoteName
++LocalQueueNamingRemoteCUPS RemoteName
+ # LocalQueueNamingIPPPrinter DNS-SD
+ # LocalQueueNamingIPPPrinter MakeModel
+ 
+@@ -453,7 +453,7 @@ BrowseRemoteProtocols @BROWSEREMOTEPROTO
+ # CreateIPPPrinterQueues AppleRaster
+ # CreateIPPPrinterQueues Everywhere AppleRaster
+ # CreateIPPPrinterQueues Driverless
+-# CreateIPPPrinterQueues All
++CreateIPPPrinterQueues All
+ 
+ 
+ # If cups-browsed is automatically creating print queues for native

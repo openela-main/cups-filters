@@ -1,0 +1,11 @@
+diff -up cups-filters-1.20.3/filter/foomatic-rip/foomaticrip.c.cleareof cups-filters-1.20.3/filter/foomatic-rip/foomaticrip.c
+--- cups-filters-1.20.3/filter/foomatic-rip/foomaticrip.c.cleareof	2018-09-21 13:38:05.882666106 +0200
++++ cups-filters-1.20.3/filter/foomatic-rip/foomaticrip.c	2018-09-21 13:38:55.330277816 +0200
+@@ -663,6 +663,7 @@ int print_file(const char *filename, int
+                     rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
+                             "Couldn't dup stdout of pdf-to-ps\n");
+ 
++                clearerr(stdin);
+                 ret = print_file("<STDIN>", 0);
+ 
+                 wait_for_process(renderer_pid);

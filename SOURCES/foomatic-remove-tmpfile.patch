@@ -1,0 +1,17 @@
+diff --git a/filter/foomatic-rip/foomaticrip.c b/filter/foomatic-rip/foomaticrip.c
+index 7dc2426..146125f 100644
+--- a/filter/foomatic-rip/foomaticrip.c
++++ b/filter/foomatic-rip/foomaticrip.c
+@@ -672,6 +672,12 @@ int print_file(const char *filename, int convert)
+                 if (out != NULL)
+                   fclose(out);
+ 
++		// Delete temp file if we created one
++		if ( *tmpfilename ) {
++		  _log("Removing temporary file %s\n", tmpfilename);
++		  unlink(tmpfilename);
++		}
++
+                 return ret;
+             }
+ 
