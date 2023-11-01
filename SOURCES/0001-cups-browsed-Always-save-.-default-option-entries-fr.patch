@@ -1,0 +1,29 @@
+From 144322be6e06ff12f101fc35e472d62978861e28 Mon Sep 17 00:00:00 2001
+From: Till Kamppeter <till.kamppeter@gmail.com>
+Date: Thu, 15 Apr 2021 14:26:44 +0200
+Subject: [PATCH] cups-browsed: Always save "...-default" option entries from
+ printers.conf
+
+(cherry picked from commit cdd61132e1719a88dd8006c65e8e260c1aaa02e4)
+---
+ utils/cups-browsed.c | 4 +---
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index bffd1e09..0c335055 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -5648,9 +5648,7 @@ record_printer_options(const char *printer) {
+ 	       strcasecmp(key + strlen(key) - strlen(*ptr) + 1, *ptr + 1) == 0))
+ 	    break;
+ 	if (*ptr != NULL) {
+-	  if (strcasecmp(key, CUPS_BROWSED_DEST_PRINTER "-default") != 0 &&
+-	      (ppdname == NULL ||
+-	       strncasecmp(key + strlen(key) - 8, "-default", 8))) {
++	  if (strcasecmp(key, CUPS_BROWSED_DEST_PRINTER "-default") != 0) {
+ 	    ippAttributeString(attr, buf, sizeof(buf));
+ 	    buf[sizeof(buf) - 1] = '\0';
+ 	    c = buf;
+-- 
+2.30.2
+
