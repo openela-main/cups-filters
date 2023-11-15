@@ -1,0 +1,13 @@
+diff --git a/filter/gstoraster.c b/filter/gstoraster.c
+index 7fd9ccf..0c9f37d 100644
+--- a/filter/gstoraster.c
++++ b/filter/gstoraster.c
+@@ -906,7 +906,7 @@ main (int argc, char **argv, char *envp[])
+   cupsArrayAdd(gs_args, strdup("-c"));
+ 
+   /* Set margins if we have a bounding box defined */
+-  if (h.cupsImagingBBox[3] > 0.0) {
++  if (h.cupsImagingBBox[3] > 0.0 && outformat != OUTPUT_FORMAT_PDF) {
+     snprintf(tmpstr, sizeof(tmpstr),
+ 	     "<</.HWMargins[%f %f %f %f] /Margins[0 0]>>setpagedevice",
+ 	     h.cupsImagingBBox[0], h.cupsImagingBBox[1],

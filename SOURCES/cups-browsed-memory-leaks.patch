@@ -1,0 +1,219 @@
+diff --git a/cupsfilters/ppdgenerator.c b/cupsfilters/ppdgenerator.c
+index 3bc4d8a..44d9313 100644
+--- a/cupsfilters/ppdgenerator.c
++++ b/cupsfilters/ppdgenerator.c
+@@ -752,12 +752,17 @@ load_opt_strings_catalog(const char *location, cups_array_t *options)
+ 		     2: "..." = "..."
+ 		    10: EOF, save last entry */
+   int digit;
++  int found_in_catalog = 0;
+ 
+   if (location == NULL || (strncasecmp(location, "http:", 5) &&
+ 			   strncasecmp(location, "https:", 6))) {
+     if (location == NULL ||
+ 	(stat(location, &statbuf) == 0 && S_ISDIR(statbuf.st_mode))) /* directory? */
++    {
+       filename = _findCUPSMessageCatalog(location);
++      if (filename)
++        found_in_catalog = 1;
++    }
+     else
+       filename = location;
+   } else {
+@@ -943,6 +948,8 @@ load_opt_strings_catalog(const char *location, cups_array_t *options)
+     free(opt_name);
+   if (filename == tmpfile)
+     unlink(filename);
++  if (found_in_catalog)
++    free(filename);
+ }
+ 
+ 
+@@ -1417,10 +1424,16 @@ ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
+       } else {
+ 	if ((current_res = resolutionArrayNew()) != NULL) {
+ 	  if ((current_def = resolutionNew(lowdpi, lowdpi)) != NULL)
++          {
+ 	    cupsArrayAdd(current_res, current_def);
++            free_resolution(current_def, NULL);
++          }
+ 	  if (hidpi != lowdpi &&
+ 	      (current_def = resolutionNew(hidpi, hidpi)) != NULL)
++          {
+ 	    cupsArrayAdd(current_res, current_def);
++            free_resolution(current_def, NULL);
++          }
+ 	  current_def = NULL;
+ 	  if (cupsArrayCount(current_res) > 0 &&
+ 	      joinResolutionArrays(&common_res, &current_res, &common_def,
+@@ -1506,7 +1519,10 @@ ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
+   if (common_res == NULL) {
+     if ((common_res = resolutionArrayNew()) != NULL) {
+       if ((current_def = resolutionNew(300, 300)) != NULL)
++      {
+ 	cupsArrayAdd(common_res, current_def);
++        free_resolution(current_def, NULL);
++      }
+       current_def = NULL;
+     } else
+       goto bad_ppd;
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index 54ae2ac..507977c 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -2555,7 +2555,7 @@ record_printer_options(const char *printer) {
+   const char *key;
+   char buf[65536], *c;
+   const char *ppdname = NULL;
+-  ppd_file_t *ppd;
++  ppd_file_t *ppd = NULL;
+   ppd_option_t *ppd_opt;
+   cups_option_t *option;
+   int i;
+@@ -2825,7 +2825,8 @@ on_printer_state_changed (CupsNotifier *object,
+   char *ptr, buf[1024];
+   remote_printer_t *p, *q;
+   http_t *http = NULL;
+-  ipp_t *request, *response;
++  ipp_t *request = NULL;
++  ipp_t *response = NULL;
+   ipp_attribute_t *attr;
+   const char *pname = NULL;
+   char *remote_cups_queue;
+@@ -3107,6 +3108,10 @@ on_printer_state_changed (CupsNotifier *object,
+ 		  break;
+ 		}
+ 	      }
++              if (response) {
++                ippDelete(response);
++                response = NULL;
++              }
+ 	      if (pstate == IPP_PRINTER_IDLE && paccept) {
+ 		q->last_printer = i;
+ 		break;
+@@ -3863,7 +3868,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	debug_printf("Default page size: %s\n",
+ 		     default_page_size);
+ 	p->num_options = cupsAddOption("media-default",
+-				       strdup(default_page_size),
++				       default_page_size,
+ 				       p->num_options, &(p->options));
+       } else {
+ 	attr = ippFindAttribute(response,
+@@ -3874,7 +3879,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	  debug_printf("Default page size: %s\n",
+ 		       default_page_size);
+ 	  p->num_options = cupsAddOption("media-default",
+-					 strdup(default_page_size),
++					 default_page_size,
+ 					 p->num_options, &(p->options));
+ 	} else
+ 	  debug_printf("No default page size found!\n");
+@@ -3889,7 +3894,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	bottom = 1270;
+       snprintf(buffer, sizeof(buffer), "%d", bottom);
+       p->num_options = cupsAddOption("media-bottom-margin-default",
+-				     strdup(buffer),
++				     buffer,
+ 				     p->num_options, &(p->options));
+ 
+       if ((attr = ippFindAttribute(response, "media-left-margin-supported", IPP_TAG_INTEGER)) != NULL) {
+@@ -3900,7 +3905,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	left = 635;
+       snprintf(buffer, sizeof(buffer), "%d", left);
+       p->num_options = cupsAddOption("media-left-margin-default",
+-				     strdup(buffer),
++				     buffer,
+ 				     p->num_options, &(p->options));
+ 
+       if ((attr = ippFindAttribute(response, "media-right-margin-supported", IPP_TAG_INTEGER)) != NULL) {
+@@ -3911,7 +3916,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	right = 635;
+       snprintf(buffer, sizeof(buffer), "%d", right);
+       p->num_options = cupsAddOption("media-right-margin-default",
+-				     strdup(buffer),
++				     buffer,
+ 				     p->num_options, &(p->options));
+ 
+       if ((attr = ippFindAttribute(response, "media-top-margin-supported", IPP_TAG_INTEGER)) != NULL) {
+@@ -3922,7 +3927,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	top = 1270;
+       snprintf(buffer, sizeof(buffer), "%d", top);
+       p->num_options = cupsAddOption("media-top-margin-default",
+-				     strdup(buffer),
++				     buffer,
+ 				     p->num_options, &(p->options));
+ 
+       debug_printf("Margins: Left: %d, Right: %d, Top: %d, Bottom: %d\n",
+@@ -3943,7 +3948,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	debug_printf("Best color space: %s\n",
+ 		     best_color_space);
+ 	p->num_options = cupsAddOption("print-color-mode-default",
+-				       strdup(best_color_space),
++				       best_color_space,
+ 				       p->num_options, &(p->options));
+       } else {
+ 	debug_printf("No info about supported color spaces found!\n");
+@@ -3956,7 +3961,7 @@ create_remote_printer_entry (const char *queue_name,
+ 	p->num_options = cupsAddOption("sides-default", "two-sided-long-edge",
+ 				       p->num_options, &(p->options));
+ 	
+-      p->num_options = cupsAddOption("output-format-default", strdup(pdl),
++      p->num_options = cupsAddOption("output-format-default", pdl,
+ 				     p->num_options, &(p->options));
+       p->num_options = cupsAddOption("make-and-model-default",
+ 				     remove_bad_chars(make_model, 0),
+@@ -4119,7 +4124,7 @@ gboolean update_cups_queues(gpointer unused) {
+   char *disabled_str, *ptr, *prefix;
+   const char *loadedppd = NULL;
+   int pass_through_ppd;
+-  ppd_file_t *ppd;
++  ppd_file_t *ppd = NULL;
+   ppd_choice_t *choice;
+   cups_file_t *in, *out;
+   char keyword[1024], *keyptr;
+@@ -4588,6 +4593,7 @@ gboolean update_cups_queues(gpointer unused) {
+ 	  p->timeout = current_time + TIMEOUT_RETRY;
+ 	  p->no_autosave = 0;
+ 	  ppdClose(ppd);
++          ppd = NULL;
+ 	  unlink(loadedppd);
+ 	  break;
+ 	}
+@@ -4597,6 +4603,7 @@ gboolean update_cups_queues(gpointer unused) {
+ 	  p->no_autosave = 0;
+ 	  cupsFileClose(out);
+ 	  ppdClose(ppd);
++          ppd = NULL;
+ 	  unlink(loadedppd);
+ 	  break;
+ 	}
+@@ -4710,6 +4717,7 @@ gboolean update_cups_queues(gpointer unused) {
+ 	cupsFileClose(in);
+ 	cupsFileClose(out);
+ 	ppdClose(ppd);
++        ppd = NULL;
+ 	unlink(loadedppd);
+ 	loadedppd = NULL;
+ 	if (p->ppd)
+@@ -4748,8 +4756,8 @@ gboolean update_cups_queues(gpointer unused) {
+       /* Default option settings from printer entry */
+       for (i = 0; i < p->num_options; i ++)
+ 	if (strcasecmp(p->options[i].name, "printer-is-shared"))
+-	  num_options = cupsAddOption(strdup(p->options[i].name),
+-				      strdup(p->options[i].value),
++	  num_options = cupsAddOption(p->options[i].name,
++				      p->options[i].value,
+ 				      num_options, &options);
+       /* Encode option list into IPP attributes */
+       cupsEncodeOptions2(request, num_options, options, IPP_TAG_OPERATION);
+@@ -8342,6 +8350,9 @@ fail:
+ 
+   if (local_printers_context) {
+     browse_poll_cancel_subscription (local_printers_context);
++#ifdef HAVE_CUPS_2_0
++    free(local_printers_context->server);
++#endif
+     g_list_free_full (local_printers_context->printers,
+ 		      browsepoll_printer_free);
+     free (local_printers_context);

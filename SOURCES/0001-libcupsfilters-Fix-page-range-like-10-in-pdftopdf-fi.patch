@@ -1,0 +1,26 @@
+From 022c34fedb66f706b2ab82d7506d5b5b1fa18e1f Mon Sep 17 00:00:00 2001
+From: Bryan Mason <bmason@redhat.com>
+Date: Fri, 16 Jul 2021 11:19:42 -0700
+Subject: [PATCH] libcupsfilter: Fix page range like "10-" in pdftopdf()
+ filter function
+
+---
+ filter/pdftopdf/pdftopdf.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/filter/pdftopdf/pdftopdf.cc b/filter/pdftopdf/pdftopdf.cc
+index 5725e199..979644f1 100644
+--- a/filter/pdftopdf/pdftopdf.cc
++++ b/filter/pdftopdf/pdftopdf.cc
+@@ -256,7 +256,7 @@ static void parseRanges(const char *range,IntervalSet &ret) // {{{
+         } else {
+           upper=strtol(range,(char **)&range,10);
+           if (upper>=2147483647) {
+-            ret.add(1);
++            ret.add(lower);
+           } else {
+             ret.add(lower,upper+1);
+           }
+-- 
+2.31.1
+

@@ -1,0 +1,27 @@
+From e7103a7aaa43ab613701cbf094e0aa91e6526112 Mon Sep 17 00:00:00 2001
+From: Till Kamppeter <till.kamppeter@gmail.com>
+Date: Tue, 8 Oct 2019 23:38:54 +0200
+Subject: [PATCH] gstoraster: Use ".setfilladjust2" PostScript command for
+ Center-of-Pixel method to fill paths.
+
+---
+ NEWS                | 6 ++++++
+ filter/gstoraster.c | 2 +-
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/filter/gstoraster.c b/filter/gstoraster.c
+index 4aec0799..59f39927 100644
+--- a/filter/gstoraster.c
++++ b/filter/gstoraster.c
+@@ -895,7 +895,7 @@ main (int argc, char **argv, char *envp[])
+       (t && (!strcasecmp(t, "true") || !strcasecmp(t, "on") ||
+ 	     !strcasecmp(t, "yes")))) {
+     fprintf(stderr, "DEBUG: Ghostscript using Center-of-Pixel method to fill paths.\n");
+-    cupsArrayAdd(gs_args, strdup("0 .setfilladjust"));
++    cupsArrayAdd(gs_args, strdup("0 0 .setfilladjust2"));
+   } else
+     fprintf(stderr, "DEBUG: Ghostscript using Any-Part-of-Pixel method to fill paths.\n");
+ 
+-- 
+2.26.2
+
