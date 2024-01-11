@@ -1,0 +1,459 @@
+--- cups-filters-1.20.0/filter/pdf.cxx
++++ cups-filters-1.20.0/filter/pdf.cxx
+@@ -87,7 +87,11 @@ static EMB_PARAMS *Font;
+ extern "C" pdf_t * pdf_load_template(const char *filename)
+ {
+     /* Init poppler */
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 83
++    globalParams.reset(new GlobalParams());
++#else
+     globalParams = new GlobalParams();
++#endif
+ 
+     PDFDoc *doc = new PDFDoc(new GooString(filename));
+ 
+@@ -136,7 +140,7 @@ extern "C" void pdf_prepend_stream(pdf_t
+ #endif
+     if (!pageobj.isDict() ||
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-        (contents = pageobj.dictLookupNF("Contents")).isNull()
++        (contents = pageobj.dictLookupNF("Contents").copy()).isNull()
+ #else
+         !pageobj.dictLookupNF("Contents", &contents)
+ #endif
+@@ -166,11 +170,15 @@ extern "C" void pdf_prepend_stream(pdf_t
+ #endif
+ 
+     r = xref->addIndirectObject(&stream);
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++    streamrefobj = Object(r);
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+     streamrefobj = Object(r.num, r.gen);
+ #else
+     streamrefobj.initRef(r.num, r.gen);
+ #endif
++#endif
+ 
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+     array = Object(new Array(xref));
+@@ -182,7 +190,7 @@ extern "C" void pdf_prepend_stream(pdf_t
+ 
+     if (contents.isStream()) {
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-        contents = pageobj.dictLookupNF("Contents"); // streams must be indirect, i.e. not fetch()-ed
++        contents = pageobj.dictLookupNF("Contents").copy(); // streams must be indirect, i.e. not fetch()-ed
+         array.arrayAdd(std::move(contents));
+ #else
+         pageobj.dictLookupNF("Contents", &contents); // streams must be indirect, i.e. not fetch()-ed
+@@ -194,7 +202,7 @@ extern "C" void pdf_prepend_stream(pdf_t
+         Object obj;
+         for (i = 0; i < len; i++) {
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-            obj = contents.arrayGetNF(i);
++            obj = contents.arrayGetNF(i).copy();
+             array.arrayAdd(std::move(obj));
+ #else
+             contents.arrayGetNF(i, &obj);
+@@ -258,7 +266,7 @@ static Object * get_resource_dict(XRef *
+ 
+     /* TODO resource dict can also be inherited */
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-    res = pagedict->lookupNF("Resources");
++    res = pagedict->lookupNF("Resources").copy();
+     if (res.isNull())
+ #else
+     if (!pagedict->lookupNF("Resources", &res))
+@@ -331,7 +339,7 @@ extern "C" void pdf_add_type1_font(pdf_t
+     xref->addIndirectObject(&font);
+ 
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-    fonts = resdict.dictLookupNF("Font");
++    fonts = resdict.dictLookupNF("Font").copy();
+ #else
+     resdict.dictLookupNF("Font", &fonts);
+ #endif
+@@ -540,7 +548,7 @@ extern "C" void pdf_duplicate_page (pdf_
+     }
+ 
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-    parentref = page.dictLookupNF("Parent");
++    parentref = page.dictLookupNF("Parent").copy();
+     parent = parentref.fetch(xref);
+ #else
+     page.dictLookupNF("Parent", &parentref);
+@@ -568,6 +576,9 @@ extern "C" void pdf_duplicate_page (pdf_
+     // the pages tree (not supported by major pdf implementations).
+     for (i = 1; i < count; i++) {
+         Ref r = xref->addIndirectObject(&page);
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++        kids.arrayAdd(Object(r));
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+         kids.arrayAdd(Object(r.num, r.gen));
+ #else
+@@ -575,6 +586,7 @@ extern "C" void pdf_duplicate_page (pdf_
+         kids.arrayAdd(&ref);
+         ref.free();
+ #endif
++#endif
+     }
+ 
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+@@ -734,7 +746,7 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+         }
+ 
+         FormField *ff = fm_text->getField();
+-        GooString *field_name;
++        const GooString *field_name;
+         field_name = ff->getFullyQualifiedName();
+         if ( ! field_name )
+             field_name = ff->getPartialName();
+@@ -743,7 +755,11 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+             continue;
+         }
+ 
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 72
++        const char *name = field_name->c_str();
++#else
+         const char *name = field_name->getCString();
++#endif
+         const char *fill_with = lookup_opt(opt, name);
+         if ( ! fill_with ) {
+             fprintf(stderr, "Lack information for widget: %s.\n", name);
+@@ -831,6 +847,9 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+         appearance_stream_dic.dictSet("Type", name_object("XObject"));
+         appearance_stream_dic.dictSet("Subtype", name_object("Form"));
+         appearance_stream_dic.dictSet("FormType", int_object(1));
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++        appearance_stream_dic.dictSet("Resources", Object(resref));
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+         appearance_stream_dic.dictSet("Resources", Object(resref.num, resref.gen));
+ #else
+@@ -838,6 +857,7 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+         obj_ref_x.initRef(resref.num, resref.gen);
+         appearance_stream_dic.dictSet("Resources", &obj_ref_x);
+ #endif
++#endif
+ 
+         /* BBox array: TODO. currently out of the head. */
+         Object array;
+@@ -851,8 +871,13 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+         appearance_stream_dic.dictSet("BBox", std::move(array));
+         appearance_stream_dic.dictSet("Length", Object(appearance_stream->getLength()));
+ 
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 72
++        MemStream *mem_stream = new MemStream(appearance_stream->c_str(),
++                0, appearance_stream->getLength(), std::move(appearance_stream_dic));
++#else
+         MemStream *mem_stream = new MemStream(appearance_stream->getCString(),
+                 0, appearance_stream->getLength(), std::move(appearance_stream_dic));
++#endif
+ 
+         /* Make obj stream */
+         Object stream = Object(static_cast<Stream *>(mem_stream));
+@@ -860,8 +885,11 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+         Ref r = xref->addIndirectObject(&stream);
+ 
+         /* Update Xref table */
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++        Object obj_ref = Object(r);
++#else
+         Object obj_ref = Object(r.num, r.gen);
+-
++#endif
+         /*
+          * Fill Annotation's appearance streams dic /AP
+          * See: 8.4.4 Appearance Streams
+@@ -884,8 +912,13 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+         appearance_stream_dic.dictSet("BBox", &array);
+         appearance_stream_dic.dictSet("Length", int_object(appearance_stream->getLength()));
+ 
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 72
++        MemStream *mem_stream = new MemStream(appearance_stream->c_str(),
++                0, appearance_stream->getLength(), &appearance_stream_dic);
++#else
+         MemStream *mem_stream = new MemStream(appearance_stream->getCString(),
+                 0, appearance_stream->getLength(), &appearance_stream_dic);
++#endif
+ 
+         /* Make obj stream */
+         Object stream;
+@@ -925,10 +958,10 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+      */
+     Object *obj_form = catalog->getAcroForm();
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-    obj_form->dictSet("NeedAppearances", Object(gFalse));
++    obj_form->dictSet("NeedAppearances", Object(false));
+ #else
+     Object obj1;
+-    obj1.initBool(gFalse);
++    obj1.initBool(false);
+     obj_form->dictSet("NeedAppearances", &obj1);
+ #endif
+ 
+@@ -948,7 +981,11 @@ extern "C" int pdf_fill_form(pdf_t *doc,
+     catRef.gen = xref->getRootGen();
+     catRef.num = xref->getRootNum();
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++    catObj.dictSet("AcroForm", Object(ref_form));
++#else
+     catObj.dictSet("AcroForm", Object(ref_form.num, ref_form.gen));
++#endif
+     xref->setModifiedObject(&catObj, catRef);
+ #else
+     Object obj2;
+@@ -1020,12 +1057,22 @@ static int pdf_embed_font(pdf_t *doc,
+ 
+     /* Create memory stream font. Add it to font dic. */
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 72
++    MemStream *mem_stream = new MemStream(font_stream->c_str(),
++            0, outlen, std::move(f_dic));
++#else
+     MemStream *mem_stream = new MemStream(font_stream->getCString(),
+             0, outlen, std::move(f_dic));
++#endif
+     Object stream = Object(static_cast<Stream *>(mem_stream));
+ #else
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 72
++    MemStream *mem_stream = new MemStream(font_stream->c_str(),
++            0, outlen, &f_dic);
++#else
+     MemStream *mem_stream = new MemStream(font_stream->getCString(),
+             0, outlen, &f_dic);
++#endif
+ 
+     /* Make obj stream */
+     Object stream;
+@@ -1066,7 +1113,7 @@ static int pdf_embed_font(pdf_t *doc,
+     Object fonts;
+ 
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+-    fonts = resdict.dictLookupNF("Font");
++    fonts = resdict.dictLookupNF("Font").copy();
+ #else
+     resdict.dictLookupNF("Font", &fonts);
+ #endif
+@@ -1074,7 +1121,7 @@ static int pdf_embed_font(pdf_t *doc,
+         /* Create new one, if doesn't exists */
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+         resdict.dictSet("Font", Object(new Dict(xref)));
+-        fonts = resdict.dictLookupNF("Font");
++        fonts = resdict.dictLookupNF("Font").copy();
+ #else
+         fonts.initDict(xref);
+         resdict.dictSet("Font", &fonts);
+@@ -1108,11 +1155,15 @@ static int pdf_embed_font(pdf_t *doc,
+ 
+     /* r - cid resource dic */
+     Object font_res_obj_ref;
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++    font_res_obj_ref = Object(r);
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+     font_res_obj_ref = Object(r.num, r.gen);
+ #else
+     font_res_obj_ref.initRef(r.num, r.gen);
+ #endif
++#endif
+ 
+     Object *fonts_dic;
+     Object dereferenced_obj;
+@@ -1440,6 +1491,9 @@ static Object *make_fontdescriptor_dic(
+ #endif
+     }
+ 
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++    dic->dictSet(emb_pdf_get_fontfile_key(emb), Object(fontfile_obj_ref));
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+     dic->dictSet(emb_pdf_get_fontfile_key(emb), Object(fontfile_obj_ref.num, fontfile_obj_ref.gen));
+ #else
+@@ -1447,6 +1501,7 @@ static Object *make_fontdescriptor_dic(
+     ref_obj.initRef(fontfile_obj_ref.num, fontfile_obj_ref.gen);
+     dic->dictSet(emb_pdf_get_fontfile_key(emb), &ref_obj);
+ #endif
++#endif
+ 
+     return dic;
+ }
+@@ -1480,6 +1535,9 @@ static Object *make_font_dic(
+             "BaseFont",
+             name_object(copyString(emb_pdf_escape_name(fdes->fontname,-1))));
+ 
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++    dic->dictSet("FontDescriptor", Object(fontdescriptor_obj_ref));
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+     dic->dictSet("FontDescriptor", Object(fontdescriptor_obj_ref.num, fontdescriptor_obj_ref.gen));
+ #else
+@@ -1487,6 +1545,7 @@ static Object *make_font_dic(
+     ref_obj.initRef(fontdescriptor_obj_ref.num, fontdescriptor_obj_ref.gen);
+     dic->dictSet("FontDescriptor", &ref_obj);
+ #endif
++#endif
+ 
+     if ( emb->plan & EMB_A_MULTIBYTE ) {
+         assert(fwid->warray);
+@@ -1573,17 +1632,26 @@ static Object *make_cidfont_dic(
+     basefont->append(addenc);
+     basefont->append((addenc[0])?encoding:"");
+ 
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 72
++    dic->dictSet("BaseFont",
++            name_object(copyString(basefont->c_str())));
++#else
+     dic->dictSet("BaseFont",
+             name_object(copyString(basefont->getCString())));
++#endif
+ 
+     dic->dictSet("Encoding", name_object(copyString(encoding)));
+ 
+     Object obj;
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 75
++    obj = Object(fontdescriptor_obj_ref);
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+     obj = Object(fontdescriptor_obj_ref.num, fontdescriptor_obj_ref.gen);
+ #else
+     obj.initRef(fontdescriptor_obj_ref.num, fontdescriptor_obj_ref.gen);
+ #endif
++#endif
+ 
+     Object array;
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 58
+--- cups-filters-1.20.0/filter/pdftoraster.cxx
++++ cups-filters-1.20.0/filter/pdftoraster.cxx
+@@ -282,8 +282,13 @@ cmsHPROFILE sgray_profile()
+ 
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 19
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 23
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 85
++void CDECL myErrorFun(ErrorCategory category,
++    Goffset pos, const char *msg)
++#else
+ void CDECL myErrorFun(void *data, ErrorCategory category,
+     Goffset pos, char *msg)
++#endif
+ #else
+ void CDECL myErrorFun(void *data, ErrorCategory category,
+     int pos, char *msg)
+@@ -412,9 +417,9 @@ static GBool getColorProfilePath(ppd_fil
+ 	    path->append("/profiles/");
+ 	}
+ 	path->append(attr->value);
+-	return gTrue;
++	return true;
+     }
+-    return gFalse;
++    return false;
+ }
+ #endif
+ 
+@@ -1686,7 +1691,7 @@ static void outPage(PDFDoc *doc, Catalog
+ {
+   SplashBitmap *bitmap;
+   Page *page = catalog->getPage(pageNo);
+-  PDFRectangle *mediaBox = page->getMediaBox();
++  const PDFRectangle *mediaBox = page->getMediaBox();
+   int rotate = page->getRotate();
+   double paperdimensions[2], /* Physical size of the paper */
+     margins[4];	/* Physical margins of print */
+@@ -1814,7 +1819,7 @@ static void outPage(PDFDoc *doc, Catalog
+ 
+   doc->displayPage(out,pageNo,header.HWResolution[0],
+ 		   header.HWResolution[1],(landscape == 0 ? 0 : 90),
+-		   gTrue,gTrue,gTrue);
++		   true,true,true);
+   bitmap = out->getBitmap();
+   bitmapoffset[0] = margins[0] / 72.0 * header.HWResolution[0];
+   bitmapoffset[1] = margins[3] / 72.0 * header.HWResolution[1];
+@@ -1867,7 +1872,7 @@ static void outPage(PDFDoc *doc, Catalog
+   writePageImage(raster,bitmap,pageNo);
+ }
+ 
+-static void setPopplerColorProfile()
++static void setPopplerColorProfile(SplashOutputDev *out)
+ {
+   if (header.cupsBitsPerColor != 8 && header.cupsBitsPerColor != 16) {
+     /* color Profile is not supported */
+@@ -1951,7 +1956,13 @@ static void setPopplerColorProfile()
+     break;
+   }
+   if (popplerColorProfile != NULL) {
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 90
++#ifdef USE_CMS
++    out->setDisplayProfile(make_GfxLCMSProfilePtr(popplerColorProfile));
++#endif
++#else
+     GfxColorSpace::setDisplayProfile(popplerColorProfile);
++#endif
+   }
+ }
+ 
+@@ -1966,13 +1977,21 @@ int main(int argc, char *argv[]) {
+   int rowpad;
+   Catalog *catalog;
+ 
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 85
++  setErrorCallback(::myErrorFun);
++#else
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 19
+   setErrorCallback(::myErrorFun,NULL);
+ #else
+   setErrorFunction(::myErrorFun);
+ #endif
++#endif
+   cmsSetLogErrorHandler(lcmsErrorHandler);
+-  globalParams = new GlobalParams();
++#if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 83
++    globalParams.reset(new GlobalParams());
++#else
++    globalParams = new GlobalParams();
++#endif
+   parseOpts(argc, argv);
+ 
+   if (argc == 6) {
+@@ -2119,14 +2138,10 @@ int main(int argc, char *argv[]) {
+     break;
+   }
+ 
+-  if (!cm_disabled) {
+-    setPopplerColorProfile();
+-  }
+-
+   out = new SplashOutputDev(cmode,rowpad/* row padding */,
+-    gFalse,paperColor,gTrue
++    false,paperColor,true
+ #if POPPLER_VERSION_MAJOR == 0 && POPPLER_VERSION_MINOR <= 30
+-    ,gFalse
++    ,false
+ #endif
+     );
+ #if POPPLER_VERSION_MAJOR > 0 || POPPLER_VERSION_MINOR >= 19
+@@ -2135,6 +2150,10 @@ int main(int argc, char *argv[]) {
+   out->startDoc(doc->getXRef());
+ #endif
+ 
++  if (!cm_disabled) {
++    setPopplerColorProfile(out);
++  }
++
+   if ((raster = cupsRasterOpen(1, pwgraster ? CUPS_RASTER_WRITE_PWG :
+ 			       CUPS_RASTER_WRITE)) == 0) {
+         pdfError(-1,const_cast<char *>("Can't open raster stream"));
+@@ -2162,9 +2181,11 @@ err1:
+     cmsDeleteTransform(colorTransform);
+   }
+ 
++#if POPPLER_VERSION_MAJOR == 0 && POPPLER_VERSION_MINOR <= 68
+   // Check for memory leaks
+   Object::memCheck(stderr);
+   gMemReport(stderr);
++#endif
+ 
+   return exitCode;
+ }

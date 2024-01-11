@@ -1,0 +1,18 @@
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index c6c257e..2cc64dd 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -2747,6 +2747,13 @@ on_printer_state_changed (CupsNotifier *object,
+ 	if (i == q->last_printer)
+ 	  break;
+       }
++
++      /* Close remote connection */
++      if (http) {
++        httpClose(http);
++        http = NULL;
++      }
++
+       /* Find the ID of the current job */
+       request = ippNewRequest(IPP_GET_JOBS);
+       httpAssembleURIf(HTTP_URI_CODING_ALL, uri, sizeof(uri), "ipp", NULL,

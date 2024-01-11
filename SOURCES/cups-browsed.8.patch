@@ -1,0 +1,14 @@
+diff -up cups-filters-1.20.0/utils/cups-browsed.8.manpage cups-filters-1.20.0/utils/cups-browsed.8
+--- cups-filters-1.20.0/utils/cups-browsed.8.manpage	2018-11-12 14:14:48.436062013 +0100
++++ cups-filters-1.20.0/utils/cups-browsed.8	2018-11-12 14:19:10.188091043 +0100
+@@ -100,8 +100,8 @@ and command line tools.
+ 
+ \fBcups-browsed.conf\fP(5)
+ .PP
+-/usr/share/doc/\fBcups-browsed\fP/README.gz
++/usr/share/doc/cups-filters/README.gz
+ .SH AUTHOR
+-The authors of \fBcups-browsed\fP are listed in /usr/share/doc/\fBcups-browsed\fP/AUTHORS.
++The authors of \fBcups-browsed\fP are listed in /usr/share/doc/cups-filters/AUTHORS.
+ .PP
+ This manual page was written for the Debian Project, but it may be used by others.
