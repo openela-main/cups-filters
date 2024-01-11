@@ -1,0 +1,128 @@
+From d90a4fc57b00b4a1f6c196bcb96025251b555dd9 Mon Sep 17 00:00:00 2001
+From: zdohnal <zdohnal@redhat.com>
+Date: Fri, 18 Jun 2021 12:27:53 +0200
+Subject: [PATCH] cups-browsed.c: Make NotifLeaseDuration configurable and
+ renew after half the lease duration not 60 sec before end
+
+1) NotifLeaseDuration directive for cups-browsed.conf - it will make
+   lease duration for notifications configurable by users. IMO it is not
+   useful for regular users, but it is helpful during sanity testing
+   (for verifying that we actually renew the subscription when time
+   comes). The current hardcoded 1 day is unusuable for that :( .
+   I implemented the lowest threshold to 300s to prevent a possible DoS.
+2) Subscription renewal is set to happen in the middle of NotifLeaseDuration,
+   not one minute before lease expiration. This was a problem on busy servers,
+   where cups-browsed was busy and wasn't able to renew the subscription
+   before cupsd removed it. Then if some jobs had come before the subscription
+   was created again, the queue got disabled. The proposed approach is based
+   on behavior of DHCP.
+---
+ utils/cups-browsed.c       | 17 +++++++++++++----
+ utils/cups-browsed.conf.5  | 11 +++++++++++
+ utils/cups-browsed.conf.in |  8 ++++++++
+ 3 files changed, 32 insertions(+), 4 deletions(-)
+
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index 61d6c551..2d367c59 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -142,7 +142,6 @@ static int  ldap_rebind_proc(LDAP *RebindLDAPHandle,
+ #define TIMEOUT_REMOVE      -1
+ #define TIMEOUT_CHECK_LIST   2
+ 
+-#define NOTIFY_LEASE_DURATION (24 * 60 * 60)
+ #define CUPS_DBUS_NAME "org.cups.cupsd.Notifier"
+ #define CUPS_DBUS_PATH "/org/cups/cupsd/Notifier"
+ #define CUPS_DBUS_INTERFACE "org.cups.cupsd.Notifier"
+@@ -508,6 +507,7 @@ static int autoshutdown_timeout = 30;
+ static autoshutdown_inactivity_type_t autoshutdown_on = NO_QUEUES;
+ static guint autoshutdown_exec_id = 0;
+ static const char *default_printer = NULL;
++static unsigned int notify_lease_duration = 86400;
+ 
+ static int debug_stderr = 0;
+ static int debug_logfile = 0;
+@@ -5017,7 +5017,7 @@ create_subscription ()
+   ippAddString (req, IPP_TAG_SUBSCRIPTION, IPP_TAG_URI,
+ 		"notify-recipient-uri", NULL, "dbus://");
+   ippAddInteger (req, IPP_TAG_SUBSCRIPTION, IPP_TAG_INTEGER,
+-		 "notify-lease-duration", NOTIFY_LEASE_DURATION);
++		 "notify-lease-duration", notify_lease_duration);
+ 
+   resp = cupsDoRequest (conn, req, "/");
+   if (!resp || cupsLastError() != IPP_STATUS_OK) {
+@@ -5060,7 +5060,7 @@ renew_subscription (int id)
+   ippAddString (req, IPP_TAG_SUBSCRIPTION, IPP_TAG_URI,
+ 		"notify-recipient-uri", NULL, "dbus://");
+   ippAddInteger (req, IPP_TAG_SUBSCRIPTION, IPP_TAG_INTEGER,
+-		 "notify-lease-duration", NOTIFY_LEASE_DURATION);
++		 "notify-lease-duration", notify_lease_duration);
+ 
+   resp = cupsDoRequest (conn, req, "/");
+   if (!resp || cupsLastError() != IPP_STATUS_OK) {
+@@ -11857,6 +11857,15 @@ read_configuration (const char *filename)
+       } else
+ 	debug_printf("Invalid %s value: %d\n",
+ 		     line, t);
++    } else if (!strcasecmp(line, "NotifLeaseDuration") && value) {
++      int t = atoi(value);
++      if (t >= 300) {
++	  notify_lease_duration = t;
++	debug_printf("Set %s to %d sec.\n",
++		     line, t);
++      } else
++	debug_printf("Invalid %s value: %d\n",
++		     line, t);
+     } else if (!strcasecmp(line, "HttpMaxRetries") && value) {
+       int t = atoi(value);
+       if (t > 0) {
+@@ -12728,7 +12737,7 @@ int main(int argc, char*argv[]) {
+   /* Subscribe to CUPS' D-Bus notifications and create a proxy to receive
+      the notifications */
+   subscription_id = create_subscription ();
+-  g_timeout_add_seconds (NOTIFY_LEASE_DURATION - 60,
++  g_timeout_add_seconds (notify_lease_duration / 2,
+ 			 renew_subscription_timeout,
+ 			 &subscription_id);
+   cups_notifier = cups_notifier_proxy_new_for_bus_sync (G_BUS_TYPE_SYSTEM,
+diff --git a/utils/cups-browsed.conf.5 b/utils/cups-browsed.conf.5
+index c47f8e8d..263f0843 100644
+--- a/utils/cups-browsed.conf.5
++++ b/utils/cups-browsed.conf.5
+@@ -966,6 +966,17 @@ shutdown.
+ 
+ .fam T
+ .fi
++NotifLeaseDuration defines how long the D-BUS subscription created by cups-browsed
++in cupsd will last before cupsd cancels it. The default value is 1 day
++in seconds - 86400. The subscription renewal is set to happen after half of
++NotifLeaseDuration passed. The D-BUS notifications are used for watching over queues
++and doing specific actions when a D-BUS notification comes.
++.PP
++.nf
++.fam C
++        NotifLeaseDuration 86400
++.fam T
++.fi
+ .SH SEE ALSO
+ 
+ \fBcups-browsed\fP(8)
+diff --git a/utils/cups-browsed.conf.in b/utils/cups-browsed.conf.in
+index 3cc4ebb1..ffdf83d6 100644
+--- a/utils/cups-browsed.conf.in
++++ b/utils/cups-browsed.conf.in
+@@ -741,3 +741,11 @@ BrowseRemoteProtocols @BROWSEREMOTEPROTOCOLS@
+ # on the size of the file.
+ 
+ # DebugLogFileSize 300
++
++# NotifLeaseDuration defines how long the D-BUS subscription created by cups-browsed
++# in cupsd will last before cupsd cancels it. The default value is 1 day
++# in seconds - 86400. The subscription renewal is set to happen after half of
++# NotifLeaseDuration passed. The D-BUS notifications are used for watching over queues
++# and doing specific actions when a D-BUS notification comes.
++
++# NotifLeaseDuration 86400
+-- 
+2.31.1
+
