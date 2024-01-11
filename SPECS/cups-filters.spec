@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 11%{?dist}.1
+Release: 13%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -26,6 +26,8 @@ License: GPLv2 and GPLv2+ and GPLv3 and GPLv3+ and LGPLv2+ and MIT and BSD with 
 
 Url:     http://www.linuxfoundation.org/collaborate/workgroups/openprinting/cups-filters
 Source0: http://www.openprinting.org/download/cups-filters/cups-filters-%{version}.tar.xz
+Source1: lftocrlf.ppd
+Source2: lftocrlf
 
 # backported from upstream
 #Patch01: 0001-libcupsfilters-In-the-PPD-generator-really-give-prio.patch
@@ -228,6 +230,10 @@ The package provides filters and cups-brf backend needed for braille printing.
 %install
 %make_install
 
+# 2229784 - Add textonly driver back, but as lftocrlf
+install -p -m 0755 %{SOURCE2} %{buildroot}%{_cups_serverbin}/filter/lftocrlf
+install -p -m 0644 %{SOURCE1} %{buildroot}%{_datadir}/ppd/cupsfilters/lftocrlf.ppd
+
 # Don't ship libtool la files.
 rm -f %{buildroot}%{_libdir}/lib*.la
 
@@ -307,6 +313,8 @@ done
 %attr(0755,root,root) %{_cups_serverbin}/filter/imagetopdf
 %attr(0755,root,root) %{_cups_serverbin}/filter/imagetops
 %attr(0755,root,root) %{_cups_serverbin}/filter/imagetoraster
+# 2229784 - Add textonly driver back, but as lftocrlf
+%attr(0755,root,root) %{_cups_serverbin}/filter/lftocrlf
 %attr(0755,root,root) %{_cups_serverbin}/filter/pdftopdf
 %attr(0755,root,root) %{_cups_serverbin}/filter/pdftops
 %attr(0755,root,root) %{_cups_serverbin}/filter/pdftoraster
@@ -400,7 +408,10 @@ done
 %endif
 
 %changelog
-* Mon May 15 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-11.1
+* Tue Aug 08 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-13
+- 2229784 - Add textonly driver back, but as lftocrlf
+
+* Wed Jun 07 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-12
 - CVE-2023-24805 cups-filters: remote code execution in cups-filters, beh CUPS backend
 
 * Thu Sep 22 2022 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-11
