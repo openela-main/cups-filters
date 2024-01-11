@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.20.0
-Release: 29%{?dist}.2
+Release: 32%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -27,6 +27,8 @@ License: GPLv2 and GPLv2+ and GPLv3 and GPLv3+ and LGPLv2+ and MIT and BSD with 
 Url:     http://www.linuxfoundation.org/collaborate/workgroups/openprinting/cups-filters
 Source0: http://www.openprinting.org/download/cups-filters/cups-filters-%{version}.tar.xz
 Source1: testprint
+Source2: lftocrlf.ppd
+Source3: lftocrlf
 
 Patch01: cups-filters-createall.patch
 Patch02: cups-filters-brftopagedbrf-install.patch
@@ -63,7 +65,7 @@ Patch14: 0001-cups-browsed-Always-save-.-default-option-entries-fr.patch
 Patch15: cups-browsed-renew.patch
 # 1981612 - [RHEL 8] pdftopdf doesn't handle "page-range=10-2147483647" correctly
 Patch16: 0001-libcupsfilters-Fix-page-range-like-10-in-pdftopdf-fi.patch
-# 2193390 - Edges cropped when printing PostScript document
+# 2185675 - Edges cropped when printing PostScript document
 Patch17: gstoraster-margins.patch
 # CVE-2023-24805 cups-filters: remote code execution in cups-filters, beh CUPS backend
 Patch18: beh-cve2023.patch
@@ -237,10 +239,10 @@ The package provides filters and cups-brf backend needed for braille printing.
 %patch15 -p1 -b .renew
 # 1981612 - [RHEL 8] pdftopdf doesn't handle "page-range=10-2147483647" correctly
 %patch16 -p1 -b .ranges
-# 2193390 - Edges cropped when printing PostScript document
+# 2185675 - Edges cropped when printing PostScript document
 %patch17 -p1 -b .margins
 # CVE-2023-24805 cups-filters: remote code execution in cups-filters, beh CUPS backend
-%patch18 -p1 -b .cve2023
+%patch18 -p1 -b .cve202324805
 
 
 %build
@@ -280,6 +282,11 @@ make %{?_smp_mflags}
 
 %install
 make install DESTDIR=%{buildroot}
+
+# Add textonly driver back, but as lftocrlf
+# part of 2118406 - texttotext filter strips ESC causing PCL files to be printed improperly
+install -p -m 0755 %{SOURCE3} %{buildroot}%{_cups_serverbin}/filter/lftocrlf
+install -p -m 0644 %{SOURCE2} %{buildroot}%{_datadir}/ppd/cupsfilters/lftocrlf.ppd
 
 # Don't ship libtool la files.
 rm -f %{buildroot}%{_libdir}/lib*.la
@@ -349,6 +356,9 @@ make check
 %attr(0755,root,root) %{_cups_serverbin}/filter/imagetopdf
 %attr(0755,root,root) %{_cups_serverbin}/filter/imagetops
 %attr(0755,root,root) %{_cups_serverbin}/filter/imagetoraster
+# Add textonly driver back, but as lftocrlf
+# part of 2118406 - texttotext filter strips ESC causing PCL files to be printed improperly
+%attr(0755,root,root) %{_cups_serverbin}/filter/lftocrlf
 %attr(0755,root,root) %{_cups_serverbin}/filter/pdftopdf
 %attr(0755,root,root) %{_cups_serverbin}/filter/pdftops
 %attr(0755,root,root) %{_cups_serverbin}/filter/pdftoraster
@@ -443,11 +453,14 @@ make check
 %endif
 
 %changelog
-* Mon May 15 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-29.2
+* Tue Aug 08 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-32
+- 2118406 - texttotext filter strips ESC causing PCL files to be printed improperly
+
+* Wed Jun 07 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-31
 - CVE-2023-24805 cups-filters: remote code execution in cups-filters, beh CUPS backend
 
-* Fri May 05 2023 Tomas Korbar <tkorbar@redhat.com> - 1.20.0-29.1
-- 2193390 - Edges cropped when printing PostScript document
+* Thu Apr 13 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-30
+- 2185675 - Edges cropped when printing PostScript document
 
 * Thu Sep 22 2022 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-29
 - 2128539 - build braille subpackage only on Fedora and CentOS Stream > 9
