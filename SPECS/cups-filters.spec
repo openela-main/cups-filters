@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 13%{?dist}
+Release: 15%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -40,6 +40,8 @@ Patch02: 0001-cups-browsed.c-Make-NotifLeaseDuration-configurable-.patch
 Patch03: 0001-libcupsfilters-Fix-page-range-like-10-in-pdftopdf-fi.patch
 # CVE-2023-24805 cups-filters: remote code execution in cups-filters, beh CUPS backend
 Patch04: beh-cve2023.patch
+# RHEL-16026 Cups Browsed does not correctly pull printer location and description information from print server
+Patch05: 0001-Use-description-location-from-server-if-available-ot.patch
 
 
 # autogen.sh
@@ -108,8 +110,6 @@ BuildRequires: systemd-rpm-macros
 %if 0%{?fedora}
 Recommends: nss-mdns
 %endif
-# Avahi is needed for device discovery for newer (2012+) devices and its sharing - make it recommended
-Recommends: avahi
 # ippfind is used in driverless backend, not needed classic PPD based print queue
 Recommends: cups-ipptool
 
@@ -134,7 +134,6 @@ Requires: poppler-utils
 
 # cups-browsed
 # cups-browsed needs to have cups.service to run
-Requires: cups
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
@@ -408,6 +407,13 @@ done
 %endif
 
 %changelog
+* Mon Feb 26 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-15
+- RHEL-19201 redhat-lsb unnecessary pulls in cups and avahi dependencies
+
+* Wed Dec 20 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-14
+- RHEL-19201 redhat-lsb unnecessary pulls in cups and avahi dependencies
+- RHEL-16026 Cups Browsed does not correctly pull printer location and description information from print server
+
 * Tue Aug 08 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-13
 - 2229784 - Add textonly driver back, but as lftocrlf
 
