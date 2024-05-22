@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.20.0
-Release: 32%{?dist}
+Release: 34%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -69,6 +69,11 @@ Patch16: 0001-libcupsfilters-Fix-page-range-like-10-in-pdftopdf-fi.patch
 Patch17: gstoraster-margins.patch
 # CVE-2023-24805 cups-filters: remote code execution in cups-filters, beh CUPS backend
 Patch18: beh-cve2023.patch
+# RHEL-19433 Incorrect PS header handling in gstopdf
+Patch19: 0001-gstoraster-Improved-detection-whether-input-is-PostS.patch
+# RHEL-16034 pdftopdf results with (N > 1)^2 copies if a file is sent to IPP printer with collate
+Patch20: 0001-pdftopdf-Fixed-printing-multiple-copies-on-driverles.patch
+
 
 %if %{with braille}
 Recommends: %{name}-braille%{?_isa} = %{version}-%{release}
@@ -140,14 +145,12 @@ Requires: bc grep sed which
 
 # cups-browsed
 # it needs cups.service for running
-Requires: cups
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
 
-# recommends avahi and cups-ipptool - it is needed for driverless support,
+# recommends cups-ipptool - it is needed for driverless support,
 # but it is useless for older devices and cups servers
-Recommends: avahi
 Recommends: cups-ipptool
 
 # older installations can still have ghostscript-cups and foomatic-filters
@@ -243,6 +246,10 @@ The package provides filters and cups-brf backend needed for braille printing.
 %patch17 -p1 -b .margins
 # CVE-2023-24805 cups-filters: remote code execution in cups-filters, beh CUPS backend
 %patch18 -p1 -b .cve202324805
+# RHEL-19433 Incorrect PS header handling in gstopdf
+%patch19 -p1 -b .gstoraster-psdetect
+# RHEL-16034 pdftopdf results with (N > 1)^2 copies if a file is sent to IPP printer with collate
+%patch20 -p1 -b .pdftopdf-ncopies
 
 
 %build
@@ -453,6 +460,14 @@ make check
 %endif
 
 %changelog
+* Mon Feb 26 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-34
+- RHEL-13211 redhat-lsb unnecessary pulls in cups and avahi dependencies
+
+* Tue Dec 19 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-33
+- RHEL-19433 Incorrect PS header handling in gstopdf
+- RHEL-16034 pdftopdf results with (N > 1)^2 copies if a file is sent to IPP printer with collate
+- RHEL-13211 redhat-lsb unnecessary pulls in cups and avahi dependencies
+
 * Tue Aug 08 2023 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-32
 - 2118406 - texttotext filter strips ESC causing PCL files to be printed improperly
 

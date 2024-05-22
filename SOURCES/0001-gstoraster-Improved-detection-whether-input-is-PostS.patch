@@ -1,0 +1,46 @@
+diff --git a/filter/gstoraster.c b/filter/gstoraster.c
+index 0c9f37d..820acc8 100644
+--- a/filter/gstoraster.c
++++ b/filter/gstoraster.c
+@@ -73,29 +73,23 @@ static GsDocType
+ parse_doc_type(FILE *fp)
+ {
+   char buf[5];
+-  GsDocType doc_type;
+-  char *rc;
++  GsDocType type = GS_DOC_TYPE_UNKNOWN;
+ 
+   /* get the first few bytes of the file */
+-  doc_type = GS_DOC_TYPE_UNKNOWN;
+   rewind(fp);
+-  rc = fgets(buf,sizeof(buf),fp);
+-  if (rc == NULL)
+-    goto out;
+-
+-  /* is PDF */
+-  if (strncmp(buf,"%PDF",4) == 0) {
+-    doc_type = GS_DOC_TYPE_PDF;
+-    goto out;
++/* skip until PDF/PS start header */
++ while (fgets(buf, sizeof(buf), fp) != 0) {
++   if (strncmp(buf, "%PDF", 4) == 0)
++     type = GS_DOC_TYPE_PDF;
++   if (strncmp(buf, "%!", 2) == 0)
++     type = GS_DOC_TYPE_PS;
++   if (type != GS_DOC_TYPE_UNKNOWN)
++     break;
+   }
+ 
+-  /* is PS */
+-  if (strncmp(buf,"%!",2) == 0) {
+-    doc_type = GS_DOC_TYPE_PS;
+-    goto out;
+-  }
+-out:
+-  return doc_type;
++  rewind(fp);
++
++  return (type);
+ }
+ 
+ static void
