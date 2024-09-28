@@ -1,0 +1,19 @@
+diff --git a/cupsfilters/ipp.c b/cupsfilters/ipp.c
+index 2c3b740..6b2b784 100644
+--- a/cupsfilters/ipp.c
++++ b/cupsfilters/ipp.c
+@@ -377,6 +377,14 @@ get_printer_attributes5(http_t *http_printer,
+ 		     total_attrs);
+ 	ippDelete(response);
+       } else {
++
++	// Check if the response is valid
++	if (!ippValidateAttributes(response))
++	{
++	  ippDelete(response);
++	  response = NULL;
++	}
++
+ 	/* Suitable response, we are done */
+ 	if (have_http == 0) httpClose(http_printer);
+ 	if (uri) free(uri);

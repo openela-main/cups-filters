@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 15%{?dist}
+Release: 17%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -42,6 +42,10 @@ Patch03: 0001-libcupsfilters-Fix-page-range-like-10-in-pdftopdf-fi.patch
 Patch04: beh-cve2023.patch
 # RHEL-16026 Cups Browsed does not correctly pull printer location and description information from print server
 Patch05: 0001-Use-description-location-from-server-if-available-ot.patch
+# CVE-2024-47175 cups-filters: remote command injection via attacker controlled data in PPD file
+Patch06: cups-filters-CVE-2024-47175.patch
+# CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
+Patch07: 0001-cfGetPrinterAttributes5-Validate-response-attributes.patch
 
 
 # autogen.sh
@@ -222,6 +226,7 @@ The package provides filters and cups-brf backend needed for braille printing.
 %else
            --disable-braille \
 %endif
+           --with-browseremoteprotocols=none\
            --with-remote-cups-local-queue-naming=RemoteName
 
 %make_build
@@ -274,6 +279,14 @@ do
         fi
     fi
 done
+
+# Set BrowseRemoteProtocols to none in light of CVE-2024-47176
+if ! grep -Fxq "# added by post scriptlet" %{_sysconfdir}/cups/cups-browsed.conf
+then
+        cp %{_sysconfdir}/cups/cups-browsed.conf %{_sysconfdir}/cups/cups-browsed.conf.rpmsave
+        sed -i "s/^\s*BrowseRemoteProtocols.*/# added by post scriptlet\nBrowseRemoteProtocols none/" %{_sysconfdir}/cups/cups-browsed.conf
+fi
+
 
 %preun
 %systemd_preun cups-browsed.service
@@ -343,7 +356,7 @@ done
 %{_mandir}/man1/driverless.1.gz
 %{_mandir}/man5/cups-browsed.conf.5.gz
 %{_mandir}/man8/cups-browsed.8.gz
-%config(noreplace) %{_sysconfdir}/cups/cups-browsed.conf
+%config(noreplace) %verify(not size filedigest mtime) %{_sysconfdir}/cups/cups-browsed.conf
 %{_unitdir}/cups-browsed.service
 
 %files libs
@@ -407,6 +420,14 @@ done
 %endif
 
 %changelog
+* Fri Sep 27 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-17
+- fix rpmverify error
+
+* Thu Sep 26 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-16
+- CVE-2024-47175 cups-filters: remote command injection via attacker controlled data in PPD file
+- CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
+- CVE-2024-47176 cups-filters: cups-browsed binds on UDP INADDR_ANY:631 trusting any packet from any source
+
 * Mon Feb 26 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-15
 - RHEL-19201 redhat-lsb unnecessary pulls in cups and avahi dependencies
 
