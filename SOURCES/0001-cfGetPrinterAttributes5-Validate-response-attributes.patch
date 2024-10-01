@@ -1,0 +1,34 @@
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index 2b30c63..a6d6fd2 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -3576,6 +3576,12 @@ create_remote_printer_entry (const char *queue_name,
+ 		  NULL, pattrs);
+     response = cupsDoRequest(http_printer, request, resource);
+ 
++    if (response && !ippValidateAttributes(response))
++    {
++      fprintf(stderr, "The printer %s contains invalid attributes.", p->queue_name);
++      goto fail;
++    }
++
+     /* Log all printer attributes for debugging */
+     if (debug_stderr || debug_logfile) {
+       debug_printf("Full list of IPP attributes (get-printer-attributes) for printer %s:\n",
+diff --git a/utils/driverless.c b/utils/driverless.c
+index fe61e58..0360bff 100644
+--- a/utils/driverless.c
++++ b/utils/driverless.c
+@@ -513,6 +513,12 @@ generate_ppd (const char *uri)
+ 		NULL, pattrs);
+   response = cupsDoRequest(http, request, resource);
+ 
++  if (response && !ippValidateAttributes(response))
++  {
++    fprintf(stderr, "ERROR: The printer provides invalid attributes, skipping.");
++    goto fail;
++  }
++
+   /* Log all printer attributes for debugging */
+   if (debug) {
+     attr = ippFirstAttribute(response);
