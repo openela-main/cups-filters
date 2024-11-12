@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 17%{?dist}
+Release: 18%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -42,10 +42,12 @@ Patch03: 0001-libcupsfilters-Fix-page-range-like-10-in-pdftopdf-fi.patch
 Patch04: beh-cve2023.patch
 # RHEL-16026 Cups Browsed does not correctly pull printer location and description information from print server
 Patch05: 0001-Use-description-location-from-server-if-available-ot.patch
+# RHEL-46785 Cups browsing with 'Autoclustering on' in RHEL 9 cannot find printer clusters for HA
+Patch06: browsed-ignore-NULL-attrs.patch
 # CVE-2024-47175 cups-filters: remote command injection via attacker controlled data in PPD file
-Patch06: cups-filters-CVE-2024-47175.patch
+Patch07: cups-filters-CVE-2024-47175.patch
 # CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
-Patch07: 0001-cfGetPrinterAttributes5-Validate-response-attributes.patch
+Patch08: 0001-cfGetPrinterAttributes5-Validate-response-attributes.patch
 
 
 # autogen.sh
@@ -296,6 +298,38 @@ fi
 
 %ldconfig_scriptlets libs
 
+%posttrans
+if ls -lah /var/cache/cups/cups-browsed* &> /dev/null
+then
+  BROWSED_ACTIVE="0"
+  CUPSD_ACTIVE="0"
+
+  if systemctl is-active cups-browsed &> /dev/null
+  then
+    BROWSED_ACTIVE="1"
+    CUPSD_ACTIVE="1"
+  elif systemctl is-active cups &> /dev/null
+  then
+    CUPSD_ACTIVE="1"
+  fi
+
+  if test "x$CUPSD_ACTIVE" = "x1"
+  then
+    systemctl stop cups
+  fi
+  
+  # RHEL-46785 - clean up recorded options to make the fix work
+  rm -rf /var/cache/cups/*.data /var/cache/cups/cups-browsed* &> /dev/null
+  
+  if test "x$BROWSED_ACTIVE" = "x1"
+  then
+    systemctl start cups-browsed
+  elif test "x$CUPSD_ACTIVE" = "x1"
+  then
+    systemctl start cups
+  fi
+fi
+
 
 %files
 %{_pkgdocdir}/README
@@ -420,13 +454,16 @@ fi
 %endif
 
 %changelog
-* Fri Sep 27 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-17
-- fix rpmverify error
-
-* Thu Sep 26 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-16
+* Tue Oct 01 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-18
 - CVE-2024-47175 cups-filters: remote command injection via attacker controlled data in PPD file
 - CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
 - CVE-2024-47176 cups-filters: cups-browsed binds on UDP INADDR_ANY:631 trusting any packet from any source
+
+* Tue Aug 06 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-17
+- RHEL-46785 - fix errors during installability tests about modified cups-browsed.conf
+
+* Tue Jul 30 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-16
+- RHEL-46785 Cups browsing with 'Autoclustering on' in RHEL 9 cannot find printer clusters for HA
 
 * Mon Feb 26 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-15
 - RHEL-19201 redhat-lsb unnecessary pulls in cups and avahi dependencies

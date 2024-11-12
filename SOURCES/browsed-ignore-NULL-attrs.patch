@@ -1,0 +1,31 @@
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index 6dba2ed..a5e5779 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -5641,6 +5641,12 @@ record_printer_options(const char *printer) {
+ 		   printer);
+       attr = ippFirstAttribute(response);
+       while (attr) {
++        if (ippGetValueTag(attr) == IPP_TAG_NOVALUE)
++        {
++          attr = ippNextAttribute(response);
++          continue;
++        }
++
+ 	key = ippGetName(attr);
+ 	for (ptr = attrs_to_record; *ptr; ptr++)
+ 	  if (strcasecmp(key, *ptr) == 0 ||
+@@ -5657,6 +5663,13 @@ record_printer_options(const char *printer) {
+ 		memmove(c, c + 1, strlen(c));
+ 	      if (*c) c ++;
+ 	    }
++
++	    if (strlen(buf) == 0)
++	    {
++	      attr = ippNextAttribute(response);
++	      continue;
++	    }
++
+ 	    debug_printf("   %s=%s\n", key, buf);
+ 	    p->num_options = cupsAddOption(key, buf, p->num_options,
+ 					   &(p->options));
