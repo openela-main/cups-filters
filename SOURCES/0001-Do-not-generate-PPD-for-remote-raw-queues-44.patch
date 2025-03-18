@@ -1,0 +1,51 @@
+diff --git a/utils/cups-browsed.c b/utils/cups-browsed.c
+index a5e5779..b190829 100644
+--- a/utils/cups-browsed.c
++++ b/utils/cups-browsed.c
+@@ -7271,8 +7271,14 @@ create_remote_printer_entry (const char *queue_name,
+       p->prattrs = get_printer_attributes(p->uri, NULL, 0, NULL, 0, 1);
+       debug_log_out(get_printer_attributes_log);
+       if (p->prattrs == NULL)
++      {
+ 	debug_printf("get-printer-attributes IPP call failed on printer %s (%s).\n",
+ 		     p->queue_name, p->uri);
++	goto fail;
++      }
++
++      attr = ippFindAttribute(p->prattrs, "printer-make-and-model", IPP_TAG_TEXT);
++      p->make_model = attr ? strdup(ippGetString(attr, 0, NULL)) : NULL;
+     }
+   } else {
+ #ifndef HAVE_CUPS_1_6
+@@ -8242,7 +8248,8 @@ gboolean update_cups_queues(gpointer unused) {
+ 	    debug_printf("Generated Default Attributes for local queue %s\n",
+ 			 p->queue_name);
+ 	  }
+-	  if (ppdfile == NULL) {
++	  if (ppdfile == NULL && make_model && strcmp(make_model, "Local Raw Printer"))
++	  {
+ 	    /* If we do not want CUPS-generated PPDs or we cannot obtain a
+ 	       CUPS-generated PPD, for example if CUPS does not create a 
+ 	       temporary queue for this printer, we generate a PPD by
+@@ -8580,7 +8587,8 @@ gboolean update_cups_queues(gpointer unused) {
+ 	    debug_printf("Generated Default Attributes for local queue %s\n",
+ 			 p->queue_name);
+ 	  }
+-	  if (ppdfile == NULL) {
++	  if (ppdfile == NULL && make_model && strcmp(make_model, "Local Raw Printer"))
++	  {
+ 	    /* If we do not want CUPS-generated PPDs or we cannot obtain a
+ 	       CUPS-generated PPD, for example if CUPS does not create a
+ 	       temporary queue for this printer, we generate a PPD by
+@@ -8793,6 +8801,11 @@ gboolean update_cups_queues(gpointer unused) {
+         }
+ 	ppdfile = strdup(buf);
+       }
++      else
++      {
++	// No PPD - define nickname as make_model for remote raw queue
++	p->nickname = p->make_model ? strdup(p->make_model) : strdup("Local Raw Printer");
++      }
+ 
+       /* Create a new CUPS queue or modify the existing queue */
+       request = ippNewRequest(CUPS_ADD_MODIFY_PRINTER);

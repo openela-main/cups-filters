@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 18%{?dist}
+Release: 18%{?dist}.1
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -48,6 +48,8 @@ Patch06: browsed-ignore-NULL-attrs.patch
 Patch07: cups-filters-CVE-2024-47175.patch
 # CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
 Patch08: 0001-cfGetPrinterAttributes5-Validate-response-attributes.patch
+# RHEL-78978 [cups-browsed] Prints to remote RAW queues are converted to PDF documents
+Patch09: 0001-Do-not-generate-PPD-for-remote-raw-queues-44.patch
 
 
 # autogen.sh
@@ -454,6 +456,9 @@ fi
 %endif
 
 %changelog
+* Tue Feb 18 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-18.1
+- RHEL-78978 [cups-browsed] Prints to remote RAW queues are converted to PDF documents
+
 * Tue Oct 01 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-18
 - CVE-2024-47175 cups-filters: remote command injection via attacker controlled data in PPD file
 - CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
