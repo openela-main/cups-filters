@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 18%{?dist}.1
+Release: 20%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -48,8 +48,17 @@ Patch06: browsed-ignore-NULL-attrs.patch
 Patch07: cups-filters-CVE-2024-47175.patch
 # CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
 Patch08: 0001-cfGetPrinterAttributes5-Validate-response-attributes.patch
-# RHEL-78978 [cups-browsed] Prints to remote RAW queues are converted to PDF documents
+# RHEL-17124 [cups-browsed] Prints to remote RAW queues are converted to PDF documents
 Patch09: 0001-Do-not-generate-PPD-for-remote-raw-queues-44.patch
+# RHEL-70015 Double-sided printing issues on Thunderbird or Firefox // HP printers
+# Patches: 0001-pdftopdf-Fixed-print-scaling-and-N-up-for-asymmetric.patcj
+#          0001-pdftopdf-Set-a-default-for-print-scaling.patch
+#          0001-pdftopdf-Add-2-tolerance-for-input-size-larger-than-.patch
+#          0001-libcupsfilters-In-pdftopdf-fix-cropping-with-long-ed.patch
+Patch10: 0001-pdftopdf-Fixed-print-scaling-and-N-up-for-asymmetric.patch
+Patch11: 0001-pdftopdf-Set-a-default-for-print-scaling.patch
+Patch12: 0001-pdftopdf-Add-2-tolerance-for-input-size-larger-than-.patch
+Patch13: 0001-libcupsfilters-In-pdftopdf-fix-cropping-with-long-ed.patch
 
 
 # autogen.sh
@@ -456,8 +465,11 @@ fi
 %endif
 
 %changelog
-* Tue Feb 18 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-18.1
-- RHEL-78978 [cups-browsed] Prints to remote RAW queues are converted to PDF documents
+* Thu Dec 12 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-20
+- RHEL-70015 Double-sided printing issues on Thunderbird or Firefox // HP printers
+
+* Tue Oct 15 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-19
+- RHEL-17124 [cups-browsed] Prints to remote RAW queues are converted to PDF documents
 
 * Tue Oct 01 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-18
 - CVE-2024-47175 cups-filters: remote command injection via attacker controlled data in PPD file

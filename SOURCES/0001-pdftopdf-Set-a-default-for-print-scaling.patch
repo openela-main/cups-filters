@@ -1,0 +1,36 @@
+From 02e95494b49775e9e314d32d78568058d67c9b25 Mon Sep 17 00:00:00 2001
+From: Till Kamppeter <till.kamppeter@gmail.com>
+Date: Thu, 3 Feb 2022 19:03:00 -0300
+Subject: [PATCH] pdftopdf: Set a default for "print-scaling"
+
+If no setting for "print-scaling" is provided via IPP attribute or
+command line option there is no default value for it and we get
+undefined behavior and also a scary "should never happen" message in
+the log.
+
+Now we check after parsing the appropriate IPP attributes and command
+line options whether a setting was provided. If not, we use "auto".
+
+(manually backported commit dce6292f81b6872656cfcc46dac2ec101c32bf4a)
+---
+ NEWS                        | 2 ++
+ filter/pdftopdf/pdftopdf.cc | 3 +++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/filter/pdftopdf/pdftopdf.cc b/filter/pdftopdf/pdftopdf.cc
+index c6f9d5004..7a684a260 100644
+--- a/filter/pdftopdf/pdftopdf.cc
++++ b/filter/pdftopdf/pdftopdf.cc
+@@ -357,6 +357,9 @@ void getParameters(ppd_file_t *ppd,int num_options,cups_option_t *options,Proces
+       param.cropfit=1;
+     }
+   }
++  if (!param.autoprint && !param.autofit && !param.fitplot &&
++      !param.fillprint && !param.cropfit)
++    param.autoprint = true;
+   }
+ 
+   if (ppd && (ppd->landscape < 0)) { // direction the printer rotates landscape (90 or -90)
+-- 
+2.47.1
+

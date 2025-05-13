@@ -1,0 +1,36 @@
+From d4ae67231047ac6a4d532d96ddf2234465d57c1d Mon Sep 17 00:00:00 2001
+From: Till Kamppeter <till.kamppeter@gmail.com>
+Date: Sun, 27 Mar 2022 17:51:12 +0200
+Subject: [PATCH] libcupsfilters: In pdftopdf() fix cropping with
+ long-edge-first
+
+If the printer takes the paper long-edge-first (lasers and inkjets
+usually take it short-edge first, but roll-fed large-formats or label
+printers also take long-edge-first) the cropping of the page image for
+crop-to-fit (print-scaling=none) and fill (print-scaling=fill) by the
+pdftopdf() filter function did not work correctly. This is fixed now.
+
+Issue #454
+
+(manually backported from commit 70e0f47082550ae212f6b2741a447cbae17a857d)
+---
+ filter/pdftopdf/qpdf_pdftopdf_processor.cc | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/filter/pdftopdf/qpdf_pdftopdf_processor.cc b/filter/pdftopdf/qpdf_pdftopdf_processor.cc
+index 621c76880..a330e825f 100644
+--- a/filter/pdftopdf/qpdf_pdftopdf_processor.cc
++++ b/filter/pdftopdf/qpdf_pdftopdf_processor.cc
+@@ -193,7 +193,8 @@ Rotation QPDF_PDFTOPDF_PageHandle::crop(const PageRect &cropRect,Rotation orient
+   double final_w,final_h;   //Width and height of cropped image.
+ 
+   Rotation pageRot = getRotate(page);
+-  if(pageRot==ROT_0||pageRot==ROT_180)
++  if (((pageRot == ROT_0 || pageRot == ROT_180) && pageWidth <= pageHeight) ||
++      ((pageRot == ROT_90 || pageRot == ROT_270) && pageWidth > pageHeight))
+   {
+     std::swap(pageHeight,pageWidth);
+   }
+-- 
+2.47.1
+
