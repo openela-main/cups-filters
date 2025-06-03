@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.20.0
-Release: 35%{?dist}
+Release: 36%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -77,6 +77,8 @@ Patch20: 0001-pdftopdf-Fixed-printing-multiple-copies-on-driverles.patch
 Patch21: cups-filters-CVE-2024-47175.patch
 # CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
 Patch22: 0001-cfGetPrinterAttributes5-Validate-response-attributes.patch
+# RHEL-77102 Cups images rotate 90 degrees when using browsed for printer sharing
+Patch23: browsed-ignore-NULL-attrs.patch
 
 
 %if %{with braille}
@@ -258,6 +260,8 @@ The package provides filters and cups-brf backend needed for braille printing.
 %patch21 -p1 -b .CVE-2024-47175
 # CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
 %patch22 -p1 -b .CVE-2024-47076
+# RHEL-77102 Cups images rotate 90 degrees when using browsed for printer sharing
+%patch23 -p1 -b .no-orientation
 
 
 %build
@@ -358,6 +362,38 @@ fi
 %post libs -p /sbin/ldconfig
 
 %postun libs -p /sbin/ldconfig
+
+%posttrans
+if ls -lah /var/cache/cups/cups-browsed* &> /dev/null
+then
+  BROWSED_ACTIVE="0"
+  CUPSD_ACTIVE="0"
+
+  if systemctl is-active cups-browsed &> /dev/null
+  then
+    BROWSED_ACTIVE="1"
+    CUPSD_ACTIVE="1"
+  elif systemctl is-active cups &> /dev/null
+  then
+    CUPSD_ACTIVE="1"
+  fi
+
+  if test "x$CUPSD_ACTIVE" = "x1"
+  then
+    systemctl stop cups
+  fi
+  
+  # RHEL-46785 - clean up recorded options to make the fix work
+  rm -rf /var/cache/cups/*.data /var/cache/cups/cups-browsed* &> /dev/null
+  
+  if test "x$BROWSED_ACTIVE" = "x1"
+  then
+    systemctl start cups-browsed
+  elif test "x$CUPSD_ACTIVE" = "x1"
+  then
+    systemctl start cups
+  fi
+fi
 
 
 %files
@@ -477,6 +513,9 @@ fi
 %endif
 
 %changelog
+* Tue May 13 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-36
+- RHEL-77102 Cups images rotate 90 degrees when using browsed for printer sharing
+
 * Fri Sep 27 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-35
 - CVE-2024-47175 cups-filters: remote command injection via attacker controlled data in PPD file
 - CVE-2024-47076 cups-filters: `cfGetPrinterAttributes` API does not perform sanitization on returned IPP attributes
