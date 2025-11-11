@@ -1,0 +1,12 @@
+diff --git a/fontembed/sfnt_subset.c b/fontembed/sfnt_subset.c
+index dee34c5..c508b38 100644
+--- a/fontembed/sfnt_subset.c
++++ b/fontembed/sfnt_subset.c
+@@ -168,7 +168,6 @@ int otf_subset(OTF_FILE *otf,BITSET glyphs,OUTPUT_FN output,void *context) // {{
+       c=1;
+     }
+ 
+-    assert(offset%2==0);
+     // TODO? change format? if glyfSize<0x20000
+     if (otf->indexToLocFormat==0) {
+       set_USHORT(new_loca+iA*2,offset/2);

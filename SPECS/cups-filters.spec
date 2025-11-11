@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 20%{?dist}
+Release: 22%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -59,6 +59,15 @@ Patch10: 0001-pdftopdf-Fixed-print-scaling-and-N-up-for-asymmetric.patch
 Patch11: 0001-pdftopdf-Set-a-default-for-print-scaling.patch
 Patch12: 0001-pdftopdf-Add-2-tolerance-for-input-size-larger-than-.patch
 Patch13: 0001-libcupsfilters-In-pdftopdf-fix-cropping-with-long-ed.patch
+# RHEL-6519 RFE: Synchronize server defaults with clients
+# Updated from https://github.com/OpenPrinting/cups-browsed/pull/50 to 1.28.7
+Patch14: 0001-Add-BrowseOptionsUpdate.patch
+# RHEL-65587 texttopdf omits Chinese characters when creating PDF documents
+Patch15: 0001-configure.ac-Make-CJK-fonts-name-configurable.patch
+# remove the assert which caused texttopdf crash with droidsansfallback
+# it is debug assert in upstream now by default turned off, so to do not
+# backport debug_assert changes, let's just remove the specific assert
+Patch16: font-noassert.patch
 
 
 # autogen.sh
@@ -239,7 +248,8 @@ The package provides filters and cups-brf backend needed for braille printing.
 %else
            --disable-braille \
 %endif
-           --with-browseremoteprotocols=none\
+           --with-browseremoteprotocols=none \
+           --with-cjk-fonts=droidsansfallback \
            --with-remote-cups-local-queue-naming=RemoteName
 
 %make_build
@@ -465,6 +475,12 @@ fi
 %endif
 
 %changelog
+* Fri Aug 01 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-22
+- RHEL-65587 texttopdf omits Chinese characters when creating PDF documents
+
+* Mon Apr 14 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-21
+- RHEL-6519 RFE: Synchronize server defaults with clients
+
 * Thu Dec 12 2024 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-20
 - RHEL-70015 Double-sided printing issues on Thunderbird or Firefox // HP printers
 
