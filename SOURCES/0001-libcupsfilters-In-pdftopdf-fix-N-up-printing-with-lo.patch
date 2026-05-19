@@ -1,0 +1,24 @@
+diff --git a/filter/pdftopdf/pdftopdf_processor.cc b/filter/pdftopdf/pdftopdf_processor.cc
+index 2864316..30158b0 100644
+--- a/filter/pdftopdf/pdftopdf_processor.cc
++++ b/filter/pdftopdf/pdftopdf_processor.cc
+@@ -149,12 +149,14 @@ bool processPDFTOPDF(PDFTOPDF_Processor &proc,ProcessingParameters &param) // {{
+     return false;
+   }
+ 
+-  if (param.autoRotate) {
+-    const bool dst_lscape =
+-      (param.paper_is_landscape ==
+-       ((param.orientation == ROT_0) || (param.orientation == ROT_180)));
++  const bool dst_lscape =
++    (param.paper_is_landscape ==
++     ((param.orientation == ROT_0) || (param.orientation == ROT_180)));
++  if (dst_lscape)
++    std::swap(param.nup.nupX, param.nup.nupY);
++
++  if (param.autoRotate)
+     proc.autoRotateAll(dst_lscape,param.normal_landscape);
+-  }
+ 
+   std::vector<std::shared_ptr<PDFTOPDF_PageHandle>> pages=proc.get_pages();
+   const int numOrigPages=pages.size();

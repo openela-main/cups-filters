@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 22%{?dist}
+Release: 26%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -68,6 +68,20 @@ Patch15: 0001-configure.ac-Make-CJK-fonts-name-configurable.patch
 # it is debug assert in upstream now by default turned off, so to do not
 # backport debug_assert changes, let's just remove the specific assert
 Patch16: font-noassert.patch
+# introducing foomatic-hash, but without rejecting values in foomatic-rip
+# https://github.com/OpenPrinting/cups-filters/pull/648
+Patch17: 0001-Introduce-foomatic-hash-and-reject-unauthorized-valu.patch
+# make sure errors from foomatic-rip are propagated
+# https://github.com/OpenPrinting/cups-filters/pull/649
+Patch18: foomatic-ripdie-error.patch
+# rejecting the unknown values in foomatic-rip
+# https://github.com/OpenPrinting/cups-filters/pull/648
+Patch19: foomaticrip-reject-unknown-values.patch
+# RHEL-117507 cups-filter: output of landscape print have the top and left portions cut off
+# Patches: 0001-libcupsfilters-In-pdftopdf-fix-N-up-printing-with-lo.patch
+#          0001-libcupsfilters-Make-pdftopdf-correctly-working-with-.patch
+Patch20: 0001-libcupsfilters-In-pdftopdf-fix-N-up-printing-with-lo.patch
+Patch21: 0001-libcupsfilters-Make-pdftopdf-correctly-working-with-.patch
 
 
 # autogen.sh
@@ -261,6 +275,68 @@ The package provides filters and cups-brf backend needed for braille printing.
 install -p -m 0755 %{SOURCE2} %{buildroot}%{_cups_serverbin}/filter/lftocrlf
 install -p -m 0644 %{SOURCE1} %{buildroot}%{_datadir}/ppd/cupsfilters/lftocrlf.ppd
 
+# for post upgrade script to allow already existing printers
+mkdir -p %{buildroot}%{_libexecdir}/%{name}
+
+# the script which does the deed - goes PPD file by PPD file if there are any
+# problematic PPD options, scans the values into file in /var/tmp for review, while
+# hashed values are saved in a file in directory where foomatic-rip reads it.
+#
+# hashes.new is for marking this script already run once, so it won't be run again.
+# It is needed to prevent allowing newly installed printers after another upgrade.
+# This is handled by systemd unit.
+cat > %{buildroot}%{_libexecdir}/%{name}/posttrans.sh << EOF
+#!/usr/bin/bash
+
+if \$(grep -q -R 'FoomaticRIPCommandLine\|FoomaticRipOptionSetting' %{_sysconfdir}/cups/ppd)
+then
+  tmpfile=\$(mktemp -p /var/tmp foomatic-scan.XXXXXXXX)
+
+  for ppd in %{_sysconfdir}/cups/ppd/*.ppd
+  do
+    foomatic-hash --ppd \$ppd \$tmpfile %{_sysconfdir}/foomatic/hashes.d/hashes.upgrade || :
+  done
+
+  if test -f %{_sysconfdir}/foomatic/hashes.d/hashes.upgrade
+  then
+    echo "Foomatic-rip values which can inject code found - review findings in \$tmpfile. Read release notes for instructions." || :
+  fi
+else
+  touch %{_sysconfdir}/foomatic/hashes.d/hashes.new
+fi
+
+exit 0
+EOF
+
+mkdir -p %{buildroot}%{_unitdir}
+
+# Upgrade service which will be run only when the specified directory is empty
+# - the service will be run only once, on the first upgrade introducing the change.
+cat > %{buildroot}%{_unitdir}/foomaticrip-upgrade.service << EOF
+[Unit]
+Description=Allowing already installed printers for foomatic-rip
+ConditionPathIsDirectory=%{_sysconfdir}/foomatic/hashes.d
+ConditionDirectoryNotEmpty=!%{_sysconfdir}/foomatic/hashes.d
+
+[Service]
+Type=oneshot
+ExecStart=bash -c %{_libexecdir}/%{name}/posttrans.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+mkdir -p %{buildroot}%{_unitdir}/cups.service.d
+
+# We have to make sure the upgrade service is run before starting cupsd, so the allowed
+# hashes are in place already and there is no printing disruption.
+cat > %{buildroot}%{_unitdir}/cups.service.d/10-foomaticrip-upgrade.conf << EOF
+[Unit]
+After=foomaticrip-upgrade.service
+Wants=foomaticrip-upgrade.service
+EOF
+
+
 # Don't ship libtool la files.
 rm -f %{buildroot}%{_libdir}/lib*.la
 
@@ -310,16 +386,30 @@ then
         sed -i "s/^\s*BrowseRemoteProtocols.*/# added by post scriptlet\nBrowseRemoteProtocols none/" %{_sysconfdir}/cups/cups-browsed.conf
 fi
 
+%systemd_post foomaticrip-upgrade.service
+
 
 %preun
 %systemd_preun cups-browsed.service
+%systemd_preun foomaticrip-upgrade.service
 
 %postun
 %systemd_postun_with_restart cups-browsed.service 
+%systemd_postun foomaticrip-upgrade.service
 
 %ldconfig_scriptlets libs
 
 %posttrans
+if [ $1 -ge 1 ]
+then
+  /usr/lib/systemd/systemd-update-helper mark-reload-system-units foomaticrip-upgrade.service || :
+fi
+
+if [ $1 -ge 1 ]
+then
+  systemctl start foomaticrip-upgrade.service || :
+fi
+
 if ls -lah /var/cache/cups/cups-browsed* &> /dev/null
 then
   BROWSED_ACTIVE="0"
@@ -357,6 +447,7 @@ fi
 %{_pkgdocdir}/ABOUT-NLS
 %{_pkgdocdir}/AUTHORS
 %{_pkgdocdir}/NEWS
+%{_bindir}/foomatic-hash
 %{_bindir}/foomatic-rip
 %{_bindir}/driverless
 %{_bindir}/driverless-fax
@@ -404,15 +495,25 @@ fi
 %{_datadir}/cups/mime/cupsfilters.convs
 %{_datadir}/cups/mime/cupsfilters-ghostscript.convs
 %{_datadir}/cups/mime/cupsfilters-poppler.convs
+%dir %{_datadir}/foomatic
+%dir %{_datadir}/foomatic/hashes.d
 %{_datadir}/ppd/cupsfilters
 # this needs to be in the main package because of cupsfilters.drv
 %{_datadir}/cups/ppdc/pcl.h
+%dir %{_libexecdir}/%{name}
+%attr(0744,root,root) %{_libexecdir}/%{name}/posttrans.sh
+%{_mandir}/man1/foomatic-hash.1.gz
 %{_mandir}/man1/foomatic-rip.1.gz
 %{_mandir}/man1/driverless.1.gz
 %{_mandir}/man5/cups-browsed.conf.5.gz
 %{_mandir}/man8/cups-browsed.8.gz
 %config(noreplace) %verify(not size filedigest mtime) %{_sysconfdir}/cups/cups-browsed.conf
+%config(noreplace) %{_sysconfdir}/foomatic
+%ghost %attr(0644,root,root) %{_sysconfdir}/foomatic/hashes.d/hashes.new
 %{_unitdir}/cups-browsed.service
+%dir %{_unitdir}/cups.service.d
+%{_unitdir}/cups.service.d/10-foomaticrip-upgrade.conf
+%{_unitdir}/foomaticrip-upgrade.service
 
 %files libs
 %dir %{_pkgdocdir}/
@@ -475,6 +576,18 @@ fi
 %endif
 
 %changelog
+* Tue Nov 11 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-26
+- RHEL-117507 cups-filter: output of landscape print have the top and left portions cut off
+
+* Mon Nov 10 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-25
+- fix return value when libppd is not used
+
+* Mon Oct 13 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-24
+- fix posttrans script
+
+* Thu Oct 09 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-23
+- RHEL-93931 RFE: Add Allow list for FoomaticRIPCommandLine PPD values
+
 * Fri Aug 01 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-22
 - RHEL-65587 texttopdf omits Chinese characters when creating PDF documents
 
