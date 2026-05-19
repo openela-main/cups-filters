@@ -17,7 +17,7 @@ Summary: OpenPrinting CUPS filters for CUPS 2.X
 Name:    cups-filters
 Epoch:   1
 Version: 2.0.0
-Release: 10%{?dist}
+Release: 11%{?dist}
 
 # the CUPS exception text is the same as LLVM exception, so using that name with
 # agreement from legal team
@@ -31,6 +31,15 @@ Source2: lftocrlf
 
 
 # Patches
+# introducing foomatic-hash, but without rejecting values in foomatic-rip
+# https://github.com/OpenPrinting/cups-filters/pull/648
+Patch001: 0001-Introduce-foomatic-hash-and-reject-unauthorized-valu.patch
+# make sure errors from foomatic-rip are propagated
+# https://github.com/OpenPrinting/cups-filters/pull/649
+Patch002: foomatic-ripdie-error.patch
+# rejecting the unknown values in foomatic-rip
+# https://github.com/OpenPrinting/cups-filters/pull/648
+Patch003: foomaticrip-reject-unknown-values.patch
 
 
 # driverless backend/driver was moved into a separate package to
@@ -63,6 +72,8 @@ BuildRequires: pkgconfig(libcupsfilters) >= 2.0b3
 BuildRequires: pkgconfig(libppd) >= 2.0b3
 # Make sure we get postscriptdriver tags.
 BuildRequires: python3-cups
+# for systemd unit for upgrade
+BuildRequires: systemd-rpm-macros
 
 %if %{with braille}
 Recommends: braille-printer-app
@@ -132,6 +143,68 @@ queues.
 install -p -m 0755 %{SOURCE2} %{buildroot}%{_cups_serverbin}/filter/lftocrlf
 install -p -m 0644 %{SOURCE1} %{buildroot}%{_datadir}/ppd/cupsfilters/lftocrlf.ppd
 
+# for post upgrade script to allow already existing printers
+mkdir -p %{buildroot}%{_libexecdir}/%{name}
+
+# the script which does the deed - goes PPD file by PPD file if there are any
+# problematic PPD options, scans the values into file in /var/tmp for review, while
+# hashed values are saved in a file in directory where foomatic-rip reads it.
+#
+# hashes.new is for marking this script already run once, so it won't be run again.
+# It is needed to prevent allowing newly installed printers after another upgrade.
+# This is handled by systemd unit.
+cat > %{buildroot}%{_libexecdir}/%{name}/posttrans.sh << EOF
+#!/usr/bin/bash
+
+if \$(grep -q -R 'FoomaticRIPCommandLine\|FoomaticRipOptionSetting' %{_sysconfdir}/cups/ppd)
+then
+  tmpfile=\$(mktemp -p /var/tmp foomatic-scan.XXXXXXXX)
+
+  for ppd in %{_sysconfdir}/cups/ppd/*.ppd
+  do
+    foomatic-hash --ppd \$ppd \$tmpfile %{_sysconfdir}/foomatic/hashes.d/hashes.upgrade || :
+  done
+
+  if test -f %{_sysconfdir}/foomatic/hashes.d/hashes.upgrade
+  then
+    echo "Foomatic-rip values which can inject code found - review findings in \$tmpfile. Read release notes for instructions." || :
+  fi
+else
+  touch %{_sysconfdir}/foomatic/hashes.d/hashes.new
+fi
+
+exit 0
+EOF
+
+mkdir -p %{buildroot}%{_unitdir}
+
+# Upgrade service which will be run only when the specified directory is empty
+# - the service will be run only once, on the first upgrade introducing the change.
+cat > %{buildroot}%{_unitdir}/foomaticrip-upgrade.service << EOF
+[Unit]
+Description=Allowing already installed printers for foomatic-rip
+ConditionPathIsDirectory=%{_sysconfdir}/foomatic/hashes.d
+ConditionDirectoryNotEmpty=!%{_sysconfdir}/foomatic/hashes.d
+
+[Service]
+Type=oneshot
+ExecStart=bash -c %{_libexecdir}/%{name}/posttrans.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+mkdir -p %{buildroot}%{_unitdir}/cups.service.d
+
+# We have to make sure the upgrade service is run before starting cupsd, so the allowed
+# hashes are in place already and there is no printing disruption.
+cat > %{buildroot}%{_unitdir}/cups.service.d/10-foomaticrip-upgrade.conf << EOF
+[Unit]
+After=foomaticrip-upgrade.service
+Wants=foomaticrip-upgrade.service
+EOF
+
+
 # LSB3.2 requires /usr/bin/foomatic-rip,
 # create it temporarily as a relative symlink
 # we may use symlink to universal filter, but LSB is about guaranteed compatibility set
@@ -166,11 +239,29 @@ if [ $1 -gt 1 ]
 then
   rm -f /var/cache/cups/ppds.dat || :
 fi
+%systemd_post foomaticrip-upgrade.service
+
+
+%preun
+%systemd_preun foomaticrip-upgrade.service
+
+
+%postun
+%systemd_postun foomaticrip-upgrade.service
+
+
+%posttrans
+%systemd_posttrans_with_reload foomaticrip-upgrade.service
+if [ $1 -gt 1 ]
+then
+  systemctl start foomaticrip-upgrade.service || :
+fi
 
 
 %files
 %license COPYING LICENSE NOTICE
 %doc AUTHORS ABOUT-NLS CHANGES.md CONTRIBUTING.md DEVELOPING.md README.md
+%{_bindir}/foomatic-hash
 %{_bindir}/foomatic-rip
 %attr(0744,root,root) %{_cups_serverbin}/backend/beh
 # all backends needs to be run only as root because of kerberos
@@ -208,6 +299,8 @@ fi
 %{_datadir}/cups/mime/cupsfilters.convs
 %{_datadir}/cups/mime/cupsfilters-universal-postscript.convs
 %{_datadir}/cups/mime/cupsfilters-universal.convs
+%dir %{_datadir}/foomatic
+%dir %{_datadir}/foomatic/hashes.d
 %{_datadir}/ppd/cupsfilters
 %if %{with cups_ppdc}
 # escp.h and pcl.h are required during runtime, because
@@ -220,7 +313,15 @@ fi
 %{_datadir}/ppdc/escp.h
 %{_datadir}/ppdc/pcl.h
 %endif
+%dir %{_libexecdir}/%{name}
+%attr(0744,root,root) %{_libexecdir}/%{name}/posttrans.sh
+%{_mandir}/man1/foomatic-hash.1.gz
 %{_mandir}/man1/foomatic-rip.1.gz
+%config(noreplace) %{_sysconfdir}/foomatic
+%ghost %attr(0644,root,root) %{_sysconfdir}/foomatic/hashes.d/hashes.new
+%dir %{_unitdir}/cups.service.d
+%{_unitdir}/cups.service.d/10-foomaticrip-upgrade.conf
+%{_unitdir}/foomaticrip-upgrade.service
 
 %files driverless
 %license COPYING LICENSE NOTICE
@@ -234,6 +335,9 @@ fi
 
 
 %changelog
+* Tue Sep 30 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1:2.0.0-11
+- RHEL-93944 RFE: Add Allow list for FoomaticRIPCommandLine PPD values [rhel-10]
+
 * Wed Jul 23 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1:2.0.0-10
 - RHEL-83060 lpinfo -m doesn't show textonly driver
 
