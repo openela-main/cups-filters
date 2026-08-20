@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.20.0
-Release: 36%{?dist}
+Release: 36%{?dist}.1
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -79,6 +79,9 @@ Patch21: cups-filters-CVE-2024-47175.patch
 Patch22: 0001-cfGetPrinterAttributes5-Validate-response-attributes.patch
 # RHEL-77102 Cups images rotate 90 degrees when using browsed for printer sharing
 Patch23: browsed-ignore-NULL-attrs.patch
+# CVE-2026-64612 cups-filters: Handle libpng errors via longjmp()/setjmp()
+# https://github.com/OpenPrinting/libcupsfilters/commit/e8888af31419acbd0cbcc8340f41a383f35aae12
+Patch24: cups-filters-CVE-2026-64612.patch
 
 
 %if %{with braille}
@@ -262,6 +265,8 @@ The package provides filters and cups-brf backend needed for braille printing.
 %patch22 -p1 -b .CVE-2024-47076
 # RHEL-77102 Cups images rotate 90 degrees when using browsed for printer sharing
 %patch23 -p1 -b .no-orientation
+# CVE-2026-64612
+%patch24 -p1 -b .CVE-2026-64612
 
 
 %build
@@ -513,6 +518,9 @@ fi
 %endif
 
 %changelog
+* Wed Aug 05 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 1.20.0-36.1
+- CVE-2026-64612 cups-filters: Handle libpng errors via longjmp()/setjmp()
+
 * Tue May 13 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.20.0-36
 - RHEL-77102 Cups images rotate 90 degrees when using browsed for printer sharing
 
