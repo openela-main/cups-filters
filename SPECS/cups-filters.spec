@@ -11,7 +11,7 @@
 Summary: OpenPrinting CUPS filters and backends
 Name:    cups-filters
 Version: 1.28.7
-Release: 26%{?dist}
+Release: 27%{?dist}
 
 # For a breakdown of the licensing, see COPYING file
 # GPLv2:   filters: commandto*, imagetoraster, pdftops, rasterto*,
@@ -82,6 +82,9 @@ Patch19: foomaticrip-reject-unknown-values.patch
 #          0001-libcupsfilters-Make-pdftopdf-correctly-working-with-.patch
 Patch20: 0001-libcupsfilters-In-pdftopdf-fix-N-up-printing-with-lo.patch
 Patch21: 0001-libcupsfilters-Make-pdftopdf-correctly-working-with-.patch
+# CVE-2026-64612 cups-filters: Handle libpng errors via longjmp()/setjmp()
+# https://github.com/OpenPrinting/libcupsfilters/commit/e8888af31419acbd0cbcc8340f41a383f35aae12
+Patch22: cups-filters-CVE-2026-64612.patch
 
 
 # autogen.sh
@@ -576,6 +579,10 @@ fi
 %endif
 
 %changelog
+* Wed Aug 05 2026 RHEL Packaging Agent <redhat-ymir-agent@redhat.com> - 1.28.7-27
+- CVE-2026-64612 cups-filters: handle libpng errors via
+  longjmp()/setjmp() to prevent process abort on malformed PNG files
+
 * Tue Nov 11 2025 Zdenek Dohnal <zdohnal@redhat.com> - 1.28.7-26
 - RHEL-117507 cups-filter: output of landscape print have the top and left portions cut off
 
